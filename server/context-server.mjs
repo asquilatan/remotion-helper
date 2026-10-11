@@ -15,6 +15,7 @@ const defaultContext = {
   strokes: [],
   planeMarkers: [],
   planeView: { position: [1.1, -1.7, 1.5], target: [0, 0, 0] },
+  shapes: [],
   taps: { taps: [], unit: 's' },
   speedCurve: { duration: 1.5, bezier: [0.25, 0.1, 0.25, 1.0] },
   stageBg: null,
@@ -88,6 +89,7 @@ const apiHelp = {
         'strokes: [{ id, label, points: [{ x, y, t }] }] (t = seconds since pen-down, the speed profile), ' +
         'planeMarkers: [{ id, label, x, y, z }] (x,y normalized 0..1, z in plane units), ' +
         'planeView: { position: [x,y,z], target: [x,y,z] } (world-space camera angle), ' +
+        'shapes: [{ id, label, kind, position, rotation (radians), scale }] (3D preset objects), ' +
         'taps: { taps: [seconds...], unit }, ' +
         'speedCurve: { duration, bezier: [x1, y1, x2, y2] }, ' +
         'stageBg: { url, updatedAt } | null }',
@@ -152,6 +154,7 @@ function agentView(ctx) {
   const strokes = ctx.strokes ?? [];
   const planeMarkers = ctx.planeMarkers ?? [];
   const pv = ctx.planeView ?? {};
+  const shapes = ctx.shapes ?? [];
   const taps = ctx.taps?.taps ?? [];
   const sc = ctx.speedCurve ?? {};
   const lines = [
@@ -186,6 +189,13 @@ function agentView(ctx) {
       ? `- camera: pos(${pv.position.join(', ')}) tgt(${Array.isArray(pv.target) ? pv.target.join(', ') : '?'})`
       : `- camera: ?`,
     ...planeMarkers.map((m, i) => `- [${i}] ${m.label ?? m.id} :: x=${m.x.toFixed(4)} y=${m.y.toFixed(4)} z=${(m.z ?? 0).toFixed(4)}`),
+    ``,
+    `## 3d shapes (${shapes.length}) — kind + transform (position world units, rotation radians, scale)`,
+    ...shapes.map((s, i) => {
+      const fmt = (v) => (Array.isArray(v) ? v.map((n) => (+n).toFixed(3)).join(', ') : '?');
+      return `- [${i}] ${s.label ?? s.id} (${s.kind ?? '?'}) :: pos(${fmt(s.position)}) rot(${fmt(s.rotation)}) scale(${fmt(s.scale)})`;
+    }),
+    ``,
     ``,
     `## tap timer (${taps.length} taps) — absolute seconds + deltas`,
     taps.length

@@ -57,6 +57,19 @@ export interface PlaneMarker {
 
 export type Vec3 = [number, number, number];
 
+export type ShapeKind = 'cube' | 'sphere' | 'pyramid' | 'cylinder' | 'torus';
+
+export interface Shape3D {
+  id: string;
+  label: string;
+  kind: ShapeKind;
+  /** world position */
+  position: Vec3;
+  /** radians */
+  rotation: Vec3;
+  scale: Vec3;
+}
+
 export interface PlaneView {
   /** world-space camera position — the rotation angle you left the plane at */
   position: Vec3;
@@ -71,6 +84,7 @@ export interface HelperContext {
   strokes: Stroke[];
   planeMarkers: PlaneMarker[];
   planeView: PlaneView;
+  shapes: Shape3D[];
   taps: TapState;
   speedCurve: SpeedCurveState;
   stageBg: StageBg | null;

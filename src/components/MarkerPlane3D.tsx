@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import type { PlaneMarker, PlaneView, Vec3 } from '../types';
+import type { PlaneMarker, PlaneView, Shape3D, ShapeKind, Vec3 } from '../types';
 import { markers3DToRemotion } from '../lib/remotionExport';
 
 interface Props {
@@ -9,6 +9,8 @@ interface Props {
   setMarkers: (m: PlaneMarker[]) => void;
   view: PlaneView;
   setView: (v: PlaneView) => void;
+  shapes: Shape3D[];
+  setShapes: (s: Shape3D[]) => void;
 }
 
 export const DEFAULT_PLANE_VIEW: PlaneView = {
@@ -43,15 +45,58 @@ function makeLabel(text: string): THREE.Sprite {
 const sphereGeo = new THREE.SphereGeometry(0.035, 24, 16);
 const sphereMat = new THREE.MeshBasicMaterial({ color: '#ff6b35' });
 
-export default function MarkerPlane3D({ markers, setMarkers, view, setView }: Props) {
+export const SHAPE_KINDS: ShapeKind[] = ['cube', 'sphere', 'pyramid', 'cylinder', 'torus'];
+
+const shapeGeos: Record<ShapeKind, THREE.BufferGeometry> = {
+  cube: new THREE.BoxGeometry(1, 1, 1),
+  sphere: new THREE.SphereGeometry(0.5, 32, 16),
+  pyramid: new THREE.ConeGeometry(0.5, 1, 4),
+  cylinder: new THREE.CylinderGeometry(0.5, 0.5, 1, 24),
+  torus: new THREE.TorusGeometry(0.4, 0.15, 12, 32),
+};
+
+const shapeMats: Record<ShapeKind, THREE.Material> = {
+  cube: new THREE.MeshBasicMaterial({ color: '#ff6b35' }),
+  sphere: new THREE.MeshBasicMaterial({ color: '#ffb703' }),
+  pyramid: new THREE.MeshBasicMaterial({ color: '#ff8c42' }),
+  cylinder: new THREE.MeshBasicMaterial({ color: '#f4a259' }),
+  torus: new THREE.MeshBasicMaterial({ color: '#e56b6f' }),
+};
+
+const wireMat = new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.22 });
+
+const SHARED_GEO = new Set<THREE.BufferGeometry>([sphereGeo, ...Object.values(shapeGeos)]);
+const SHARED_MAT = new Set<THREE.Material>([sphereMat, ...Object.values(shapeMats), wireMat]);
+
+/** Dispose only per-instance resources (label textures); shared geo/mats survive. */
+function disposeDynamic(root: THREE.Object3D) {
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (mesh.geometry && !SHARED_GEO.has(mesh.geometry as THREE.BufferGeometry)) {
+      mesh.geometry.dispose();
+    }
+    const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
+    for (const m of Array.isArray(mat) ? mat : mat ? [mat] : []) {
+      if (SHARED_MAT.has(m)) continue;
+      const sm = m as THREE.SpriteMaterial;
+      if (sm.map) sm.map.dispose();
+      m.dispose();
+    }
+  });
+}
+
+export default function MarkerPlane3D({ markers, setMarkers, view, setView, shapes, setShapes }: Props) {
   const [mode, setMode] = useState<'orbit' | 'place'>('orbit');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const planeRef = useRef<THREE.Mesh | null>(null);
   const groupRef = useRef<THREE.Group | null>(null);
+  const shapeGroupRef = useRef<THREE.Group | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
+  const downAt = useRef<[number, number] | null>(null);
   // View captured at mount for camera init; later `view` changes (reset) are applied below.
   const initView = useRef(view);
   // Latest commit callback for the controls 'end' listener (bound once at mount).
@@ -107,6 +152,10 @@ export default function MarkerPlane3D({ markers, setMarkers, view, setView }: Pr
     scene.add(group);
     groupRef.current = group;
 
+    const shapeGroup = new THREE.Group();
+    scene.add(shapeGroup);
+    shapeGroupRef.current = shapeGroup;
+
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.12;
@@ -149,6 +198,7 @@ export default function MarkerPlane3D({ markers, setMarkers, view, setView }: Pr
       cameraRef.current = null;
       planeRef.current = null;
       groupRef.current = null;
+      shapeGroupRef.current = null;
       controlsRef.current = null;
     };
   }, []);
@@ -171,20 +221,8 @@ export default function MarkerPlane3D({ markers, setMarkers, view, setView }: Pr
   useEffect(() => {
     const group = groupRef.current;
     if (!group) return;
-    for (const child of [...group.children]) {
-      group.remove(child);
-      child.traverse((o) => {
-        const mesh = o as THREE.Mesh;
-        if (mesh.geometry && mesh.geometry !== sphereGeo) mesh.geometry.dispose();
-        const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
-        const mats = Array.isArray(mat) ? mat : mat ? [mat] : [];
-        for (const m of mats) {
-          const sm = m as THREE.SpriteMaterial;
-          if (sm.map) sm.map.dispose();
-          if (m !== sphereMat) m.dispose();
-        }
-      });
-    }
+    disposeDynamic(group);
+    group.clear();
     markers.forEach((m, i) => {
       const wx = m.x * 2 - 1;
       const wy = 1 - m.y * 2;
@@ -196,8 +234,34 @@ export default function MarkerPlane3D({ markers, setMarkers, view, setView }: Pr
     });
   }, [markers]);
 
+  // Rebuild shape meshes on change; transforms come straight from state.
+  useEffect(() => {
+    const sg = shapeGroupRef.current;
+    if (!sg) return;
+    disposeDynamic(sg);
+    sg.clear();
+    shapes.forEach((s, si) => {
+      const g = new THREE.Group();
+      g.userData.shapeId = s.id;
+      g.position.fromArray(s.position);
+      g.rotation.set(s.rotation[0], s.rotation[1], s.rotation[2]);
+      g.scale.fromArray(s.scale);
+      const geo = shapeGeos[s.kind];
+      g.add(new THREE.Mesh(geo, shapeMats[s.kind]));
+      g.add(new THREE.LineSegments(new THREE.WireframeGeometry(geo), wireMat));
+      const tag = makeLabel(String(si + 1));
+      tag.position.set(0, 0.95, 0);
+      g.add(tag);
+      sg.add(g);
+    });
+  }, [shapes]);
+
   const onCanvasDown = (e: React.PointerEvent) => {
-    if (mode !== 'place') return;
+    if (mode === 'orbit') {
+      // Record for click-vs-drag detection (selection happens on pointer-up).
+      downAt.current = [e.clientX, e.clientY];
+      return;
+    }
     const canvas = canvasRef.current;
     const camera = cameraRef.current;
     const plane = planeRef.current;
@@ -216,7 +280,71 @@ export default function MarkerPlane3D({ markers, setMarkers, view, setView }: Pr
     setMarkers([...markers, { id: nid(), label: `M${markers.length + 1}`, x: +x.toFixed(4), y: +y.toFixed(4), z: 0 }]);
   };
 
-  const snippet = markers3DToRemotion(markers, view);
+  const raycastAt = (clientX: number, clientY: number, targets: THREE.Object3D[]) => {
+    const canvas = canvasRef.current;
+    const camera = cameraRef.current;
+    if (!canvas || !camera) return null;
+    const r = canvas.getBoundingClientRect();
+    const ndc = new THREE.Vector2(
+      ((clientX - r.left) / r.width) * 2 - 1,
+      -((clientY - r.top) / r.height) * 2 + 1,
+    );
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, camera);
+    return ray.intersectObjects(targets, true)[0] ?? null;
+  };
+
+  // Click (not drag) on a shape in orbit mode selects it; empty space deselects.
+  const onCanvasUp = (e: React.PointerEvent) => {
+    if (mode !== 'orbit' || !downAt.current) return;
+    const [dx, dy] = downAt.current;
+    downAt.current = null;
+    if (Math.hypot(e.clientX - dx, e.clientY - dy) > 5) return;
+    const sg = shapeGroupRef.current;
+    if (!sg) return;
+    const hit = raycastAt(e.clientX, e.clientY, sg.children);
+    if (!hit) {
+      setSelectedId(null);
+      return;
+    }
+    let o: THREE.Object3D | null = hit.object;
+    while (o && !o.userData.shapeId) o = o.parent;
+    setSelectedId((o?.userData.shapeId as string | undefined) ?? null);
+  };
+
+  const cap = (k: ShapeKind) => k[0].toUpperCase() + k.slice(1);
+
+  const addShape = (kind: ShapeKind) => {
+    const s: Shape3D = {
+      id: nid(),
+      label: `${cap(kind)}${shapes.length + 1}`,
+      kind,
+      position: [0, 0, 0.4],
+      rotation: [0, 0, 0],
+      scale: [0.4, 0.4, 0.4],
+    };
+    setShapes([...shapes, s]);
+    setSelectedId(s.id);
+  };
+
+  const setVec = (id: string, key: 'position' | 'rotation' | 'scale', axis: 0 | 1 | 2, v: number) => {
+    setShapes(
+      shapes.map((s) => {
+        if (s.id !== id) return s;
+        const next = [...s[key]] as Vec3;
+        next[axis] = Number.isFinite(v) ? v : 0;
+        return { ...s, [key]: next };
+      }),
+    );
+  };
+
+  const deleteShape = (id: string) => {
+    if (selectedId === id) setSelectedId(null);
+    setShapes(shapes.filter((s) => s.id !== id));
+  };
+
+  const selected = shapes.find((s) => s.id === selectedId) ?? null;
+  const snippet = markers3DToRemotion(markers, view, shapes);
 
   return (
     <div className="grid2">
@@ -239,6 +367,7 @@ export default function MarkerPlane3D({ markers, setMarkers, view, setView }: Pr
           className="plane3d"
           style={{ cursor: mode === 'place' ? 'crosshair' : 'grab' }}
           onPointerDown={onCanvasDown}
+          onPointerUp={onCanvasUp}
         />
         <div className="row">
           <button className="btn ghost" onClick={() => setMarkers([])} disabled={!markers.length}>
@@ -278,6 +407,71 @@ export default function MarkerPlane3D({ markers, setMarkers, view, setView }: Pr
           ))}
           {markers.length === 0 && <li className="dim">No markers — switch to Place mode.</li>}
         </ol>
+        <h3>Shapes ({shapes.length})</h3>
+        <div className="row wrap" style={{ marginTop: 0 }}>
+          {SHAPE_KINDS.map((k) => (
+            <button
+              key={k}
+              className="mini"
+              style={{ padding: '4px 10px', fontSize: 12 }}
+              onClick={() => addShape(k)}
+            >
+              + {cap(k)}
+            </button>
+          ))}
+        </div>
+        <ol className="chain mono" style={{ marginTop: 8 }}>
+          {shapes.map((s, i) => (
+            <li key={s.id} className={selectedId === s.id ? 'sel' : ''}>
+              <code onClick={() => setSelectedId(s.id)} style={{ cursor: 'pointer' }}>
+                {s.label} · {s.kind} <span className="dim">#{i + 1}</span>
+              </code>
+              <span className="mini-row">
+                <button className="mini danger" onClick={() => deleteShape(s.id)}>✕</button>
+              </span>
+            </li>
+          ))}
+          {shapes.length === 0 && <li className="dim">Add a preset shape above.</li>}
+        </ol>
+        {selected && (
+          <>
+            <h3>
+              {selected.label} · {selected.kind}
+            </h3>
+            {(
+              [
+                ['position', 'Pos', 0.1],
+                ['rotation', 'Rot°', 5],
+                ['scale', 'Scale', 0.05],
+              ] as const
+            ).map(([key, label, step]) => (
+              <div className="xform-row" key={key}>
+                <span>{label}</span>
+                {([0, 1, 2] as const).map((axis) => {
+                  const raw = selected[key][axis];
+                  const shown = key === 'rotation' ? +((raw * 180) / Math.PI).toFixed(1) : raw;
+                  return (
+                    <input
+                      key={axis}
+                      type="number"
+                      step={step}
+                      value={shown}
+                      onChange={(e) => {
+                        const v = +e.target.value;
+                        setVec(selected.id, key, axis, key === 'rotation' ? (v * Math.PI) / 180 : v);
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+            <div className="row">
+              <button className="btn ghost" onClick={() => deleteShape(selected.id)}>
+                Delete {selected.label}
+              </button>
+            </div>
+          </>
+        )}
         <h3>Remotion export</h3>
         <pre className="code">{snippet}</pre>
         <button className="btn" onClick={() => navigator.clipboard.writeText(snippet)}>
