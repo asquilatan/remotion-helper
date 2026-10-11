@@ -72,27 +72,35 @@ export default function App() {
         </code>
       </div>
 
-      <nav className="tabs">
-        {(
-          [
-            ['waypoints', `Waypoints${waypoints.length ? ` (${waypoints.length})` : ''}`],
-            ['timer', `Tap timer${taps.taps.length ? ` (${taps.taps.length})` : ''}`],
-            ['curve', 'Speed curve'],
-          ] as [ToolTab, string][]
-        ).map(([id, label]) => (
-          <button key={id} className={tab === id ? 'tab active' : 'tab'} onClick={() => setTab(id)}>
-            {label}
-          </button>
-        ))}
-      </nav>
+      <div className="layout">
+        <aside className="sidebar">
+          <nav>
+            {(
+              [
+                ['waypoints', `Waypoints${waypoints.length ? ` (${waypoints.length})` : ''}`],
+                ['timer', `Tap timer${taps.taps.length ? ` (${taps.taps.length})` : ''}`],
+                ['curve', 'Speed curve'],
+              ] as [ToolTab, string][]
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                className={tab === id ? 'navbtn active' : 'navbtn'}
+                onClick={() => setTab(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+        </aside>
 
-      <main className="panel">
-        {tab === 'waypoints' && (
-          <WaypointPicker waypoints={waypoints} setWaypoints={setWaypoints} project={project} />
-        )}
-        {tab === 'timer' && <TapTimer taps={taps} setTaps={setTaps} fps={project.fps} />}
-        {tab === 'curve' && <SpeedCurveBuilder curve={speedCurve} setCurve={setSpeedCurve} />}
-      </main>
+        <main className="panel">
+          {tab === 'waypoints' && (
+            <WaypointPicker waypoints={waypoints} setWaypoints={setWaypoints} project={project} />
+          )}
+          {tab === 'timer' && <TapTimer taps={taps} setTaps={setTaps} fps={project.fps} />}
+          {tab === 'curve' && <SpeedCurveBuilder curve={speedCurve} setCurve={setSpeedCurve} />}
+        </main>
+      </div>
 
       <footer className="foot dim">
         Backend: <code>node server/context-server.mjs</code> (:8787) · agent endpoints:{' '}

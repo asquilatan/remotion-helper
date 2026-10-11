@@ -36,12 +36,24 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 .field input { width: 84px; background: var(--panel2); border: 1px solid var(--border);
   color: var(--text); border-radius: 8px; padding: 6px 8px; font-size: 13px; }
 
-.tabs { display: flex; gap: 8px; margin: 12px 0; }
-.tab { border: 1px solid var(--border); background: var(--panel); color: var(--text);
-  border-radius: 10px; padding: 9px 14px; cursor: pointer; font-size: 14px; }
-.tab.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.layout { display: flex; gap: 12px; align-items: stretch; margin: 12px 0; }
+.sidebar { width: 190px; flex-shrink: 0; background: var(--panel);
+  border: 1px solid var(--border); border-radius: 14px; padding: 10px; }
+.sidebar nav { display: flex; flex-direction: column; gap: 6px; }
+.navbtn { border: 1px solid transparent; background: transparent; color: var(--text);
+  border-radius: 10px; padding: 10px 12px; cursor: pointer; font-size: 14px; text-align: left; }
+.navbtn:hover { background: var(--panel2); }
+.navbtn.active { border-color: var(--accent); background: var(--panel2);
+  box-shadow: 0 0 0 1px var(--accent) inset; }
 
-.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+.panel { flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px; }
+@media (max-width: 860px) {
+  .layout { flex-direction: column; }
+  .sidebar { width: 100%; }
+  .sidebar nav { flex-direction: row; }
+  .navbtn { flex: 1; text-align: center; }
+}
 .grid2 { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; }
 @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
 h3 { margin: 14px 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); }
