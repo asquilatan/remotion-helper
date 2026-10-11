@@ -38,5 +38,3 @@ export interface HelperContext {
   speedCurve: SpeedCurveState;
   stageBg: StageBg | null;
 }
-
-export type ToolTab = 'waypoints' | 'timer' | 'curve';
