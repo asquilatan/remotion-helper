@@ -1,32 +1,17 @@
-# React + TypeScript + Vite
+# remotion-helper
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A little thing I use to help with agent context for animations in Remotion.
 
-Currently, two official plugins are available:
+Run via `npm run dev:all`.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## API (port 8787)
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+- `GET /api/help` — full endpoint list, start here.
+- `GET /api/health` — liveness check.
+- `GET /api/context` — raw `HelperContext` JSON.
+- `GET /api/agent-context` — prompt-ready text (`?format=json` for text + raw).
+- `POST /api/context` — partial patch, merged + timestamped.
+- `POST /api/project` — set `{width?, height?, fps?}` (validated).
+- `GET /api/stage-bg` — serves the waypoint stage background image.
+- `POST /api/stage-bg` — replace with `{ "image": "data:image/<png|jpeg|webp|gif>;base64,..." }`, or clear with `{ "image": null }`.
+- `POST /api/reset` — restore defaults.
