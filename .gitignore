@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Runtime backend state (rewritten on every API write)
+server/context.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
