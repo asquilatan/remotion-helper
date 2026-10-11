@@ -182,6 +182,7 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/reset') {
+    clearBgFiles();
     context = save(structuredClone(defaultContext));
     sendJson(res, 200, context);
     return;

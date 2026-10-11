@@ -3,7 +3,7 @@ import TapTimer from './components/TapTimer';
 import WaypointPicker from './components/WaypointPicker';
 import SpeedCurveBuilder from './components/SpeedCurveBuilder';
 import { createContextPusher, fetchContext, uploadStageBg } from './lib/contextSync';
-import type { ProjectSettings, SpeedCurveState, Stroke, TapState, Waypoint } from './types';
+import type { HelperContext, ProjectSettings, SpeedCurveState, Stroke, TapState, Waypoint } from './types';
 
 const pusher = createContextPusher(400);
 
@@ -27,6 +27,7 @@ export default function App() {
   });
   const [stageBg, setStageBg] = useState<string | null>(null);
   const [sync, setSync] = useState<'syncing' | 'saved' | 'error'>('saved');
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => pusher.onStatus(setSync), []);
 
@@ -49,6 +50,26 @@ export default function App() {
     pusher.push(ctxPatch);
   }, [ctxPatch]);
 
+  const resetAll = async () => {
+    if (!window.confirm('Reset everything (points, strokes, taps, curve, background)?')) return;
+    setResetting(true);
+    try {
+      const res = await fetch('/api/reset', { method: 'POST' });
+      if (!res.ok) throw new Error(`reset -> ${res.status}`);
+      const ctx = (await res.json()) as HelperContext;
+      setProject(ctx.project);
+      setWaypoints(ctx.waypoints ?? []);
+      setStrokes(ctx.strokes ?? []);
+      setTaps(ctx.taps ?? { taps: [] });
+      setSpeedCurve(ctx.speedCurve);
+      setStageBg(null);
+    } catch {
+      setSync('error');
+    } finally {
+      setResetting(false);
+    }
+  };
+
   return (
     <div className="shell">
       <header className="topbar">
@@ -56,9 +77,14 @@ export default function App() {
           <h1>remotion-helper</h1>
           <p className="dim">waypoints · tap timer · speed curves → Remotion snippets + agent API</p>
         </div>
-        <div className="sync" data-state={sync} title="Backend sync status (POST /api/context)">
-          <span className="dot" />
-          {sync === 'saved' ? 'api synced' : sync === 'syncing' ? 'syncing…' : 'api offline'}
+        <div className="top-actions">
+          <button className="btn ghost" onClick={resetAll} disabled={resetting}>
+            {resetting ? 'Resetting…' : 'Reset all'}
+          </button>
+          <div className="sync" data-state={sync} title="Backend sync status (POST /api/context)">
+            <span className="dot" />
+            {sync === 'saved' ? 'api synced' : sync === 'syncing' ? 'syncing…' : 'api offline'}
+          </div>
         </div>
       </header>
 
