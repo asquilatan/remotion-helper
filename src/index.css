@@ -50,7 +50,7 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 
 .wp-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
 .wp-side { min-height: 0; height: 100%; display: flex; flex-direction: column; overflow-y: auto; padding-right: 4px; }
-.wp-side .code { flex: 1 0 auto; height: auto; min-height: 120px; max-height: none; }
+.wp-side .code { flex: 1 0 auto; height: auto; min-height: 120px; max-height: 240px; }
 #waypoints { display: flex; flex-direction: column; }
 #waypoints .wp-layout { flex: 1; min-height: 0; align-items: stretch; }
 @media (max-width: 1200px) { .wp-layout { grid-template-columns: 1fr; } }
