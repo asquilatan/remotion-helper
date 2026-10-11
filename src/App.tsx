@@ -51,7 +51,6 @@ export default function App() {
   }, [ctxPatch]);
 
   const resetAll = async () => {
-    if (!window.confirm('Reset everything (points, strokes, taps, curve, background)?')) return;
     setResetting(true);
     try {
       const res = await fetch('/api/reset', { method: 'POST' });
