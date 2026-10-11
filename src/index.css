@@ -6,8 +6,8 @@
   --border: #2a2e3a;
   --text: #e8eaf0;
   --dim: #9aa0b2;
-  --accent: #7c6cff;
-  --accent2: #4de3c2;
+  --accent: #ff6b35;
+  --accent2: #ffb703;
   --danger: #ff6b6b;
   font-family: ui-sans-serif, system-ui, Segoe UI, Roboto, sans-serif;
 }
@@ -49,7 +49,7 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 .sync { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--dim);
   border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; background: var(--panel); }
 .sync .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent2); }
-.sync[data-state='syncing'] .dot { background: #ffc857; }
+.sync[data-state='syncing'] .dot { background: #fff; }
 .sync[data-state='error'] .dot { background: var(--danger); }
 
 .projectbar { display: flex; align-items: center; gap: 10px; margin: 16px 0;
@@ -119,7 +119,7 @@ kbd { background: var(--panel2); border: 1px solid var(--border); border-radius:
 .preview-track { position: relative; height: 46px; background: #0a0b0e;
   border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .preview-dot { position: absolute; top: 13px; width: 20px; height: 20px; border-radius: 50%;
-  background: var(--accent2); box-shadow: 0 0 14px #4de3c288; }
+  background: var(--accent2); box-shadow: 0 0 14px #ffb70388; }
 
 .foot { margin-top: 14px; font-size: 12px; }
 .foot code { font-size: 11.5px; }
