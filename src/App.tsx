@@ -31,67 +31,68 @@ export default function App() {
 
   return (
     <div className="shell">
-      <header className="topbar">
-        <div>
-          <h1>remotion-helper</h1>
-          <p className="dim">waypoints · tap timer · speed curves → Remotion snippets + agent API</p>
+      <aside className="sidebar">
+        <div className="brand">
+          remotion-<span>helper</span>
         </div>
-        <div className="sync" data-state={sync} title="Backend sync status (POST /api/context)">
-          <span className="dot" />
-          {sync === 'saved' ? 'api synced' : sync === 'syncing' ? 'syncing…' : 'api offline'}
+        <nav>
+          {(
+            [
+              ['waypoints', `Waypoints${waypoints.length ? ` (${waypoints.length})` : ''}`],
+              ['timer', `Tap timer${taps.taps.length ? ` (${taps.taps.length})` : ''}`],
+              ['curve', 'Speed curve'],
+            ] as [ToolTab, string][]
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              className={tab === id ? 'navbtn active' : 'navbtn'}
+              onClick={() => setTab(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-foot dim mono">agent → GET :8787/api/context</div>
+      </aside>
+
+      <div className="content">
+        <header className="topbar">
+          <div>
+            <h1>remotion-helper</h1>
+            <p className="dim">waypoints · tap timer · speed curves → Remotion snippets + agent API</p>
+          </div>
+          <div className="sync" data-state={sync} title="Backend sync status (POST /api/context)">
+            <span className="dot" />
+            {sync === 'saved' ? 'api synced' : sync === 'syncing' ? 'syncing…' : 'api offline'}
+          </div>
+        </header>
+
+        <div className="projectbar">
+          <label className="field">
+            W
+            <input
+              type="number"
+              value={project.width}
+              onChange={(e) => setProject({ ...project, width: +e.target.value || 1920 })}
+            />
+          </label>
+          <label className="field">
+            H
+            <input
+              type="number"
+              value={project.height}
+              onChange={(e) => setProject({ ...project, height: +e.target.value || 1080 })}
+            />
+          </label>
+          <label className="field">
+            FPS
+            <input
+              type="number"
+              value={project.fps}
+              onChange={(e) => setProject({ ...project, fps: +e.target.value || 30 })}
+            />
+          </label>
         </div>
-      </header>
-
-      <div className="projectbar">
-        <label className="field">
-          W
-          <input
-            type="number"
-            value={project.width}
-            onChange={(e) => setProject({ ...project, width: +e.target.value || 1920 })}
-          />
-        </label>
-        <label className="field">
-          H
-          <input
-            type="number"
-            value={project.height}
-            onChange={(e) => setProject({ ...project, height: +e.target.value || 1080 })}
-          />
-        </label>
-        <label className="field">
-          FPS
-          <input
-            type="number"
-            value={project.fps}
-            onChange={(e) => setProject({ ...project, fps: +e.target.value || 30 })}
-          />
-        </label>
-        <code className="dim mono agent-hint">
-          agent → GET :8787/api/context
-        </code>
-      </div>
-
-      <div className="layout">
-        <aside className="sidebar">
-          <nav>
-            {(
-              [
-                ['waypoints', `Waypoints${waypoints.length ? ` (${waypoints.length})` : ''}`],
-                ['timer', `Tap timer${taps.taps.length ? ` (${taps.taps.length})` : ''}`],
-                ['curve', 'Speed curve'],
-              ] as [ToolTab, string][]
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                className={tab === id ? 'navbtn active' : 'navbtn'}
-                onClick={() => setTab(id)}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
-        </aside>
 
         <main className="panel">
           {tab === 'waypoints' && (
@@ -100,13 +101,13 @@ export default function App() {
           {tab === 'timer' && <TapTimer taps={taps} setTaps={setTaps} fps={project.fps} />}
           {tab === 'curve' && <SpeedCurveBuilder curve={speedCurve} setCurve={setSpeedCurve} />}
         </main>
-      </div>
 
-      <footer className="foot dim">
-        Backend: <code>node server/context-server.mjs</code> (:8787) · agent endpoints:{' '}
-        <code>GET /api/context</code> · <code>GET /api/agent-context</code> · frontend pushes via{' '}
-        <code>POST /api/context</code>
-      </footer>
+        <footer className="foot dim">
+          Backend: <code>node server/context-server.mjs</code> (:8787) · agent endpoints:{' '}
+          <code>GET /api/context</code> · <code>GET /api/agent-context</code> · frontend pushes via{' '}
+          <code>POST /api/context</code>
+        </footer>
+      </div>
     </div>
   );
 }
