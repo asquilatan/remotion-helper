@@ -3,7 +3,7 @@ import TapTimer from './components/TapTimer';
 import WaypointPicker from './components/WaypointPicker';
 import SpeedCurveBuilder from './components/SpeedCurveBuilder';
 import { createContextPusher, fetchContext, uploadStageBg } from './lib/contextSync';
-import type { ProjectSettings, SpeedCurveState, TapState, Waypoint } from './types';
+import type { ProjectSettings, SpeedCurveState, Stroke, TapState, Waypoint } from './types';
 
 const pusher = createContextPusher(400);
 
@@ -19,6 +19,7 @@ function fileToDataUrl(file: File): Promise<string> {
 export default function App() {
   const [project, setProject] = useState<ProjectSettings>({ width: 1920, height: 1080, fps: 30 });
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
+  const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [taps, setTaps] = useState<TapState>({ taps: [] });
   const [speedCurve, setSpeedCurve] = useState<SpeedCurveState>({
     duration: 1.5,
@@ -41,8 +42,8 @@ export default function App() {
 
   // Push every change to the backend so GET /api/context stays fresh for your agent.
   const ctxPatch = useMemo(
-    () => ({ project, waypoints, taps, speedCurve }),
-    [project, waypoints, taps, speedCurve],
+    () => ({ project, waypoints, strokes, taps, speedCurve }),
+    [project, waypoints, strokes, taps, speedCurve],
   );
   useEffect(() => {
     pusher.push(ctxPatch);
@@ -95,6 +96,8 @@ export default function App() {
           <WaypointPicker
             waypoints={waypoints}
             setWaypoints={setWaypoints}
+            strokes={strokes}
+            setStrokes={setStrokes}
             project={project}
             bgUrl={stageBg}
             onBgFile={async (file) => {

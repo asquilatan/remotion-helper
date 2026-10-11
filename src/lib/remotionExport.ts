@@ -1,4 +1,4 @@
-import type { ProjectSettings, SpeedCurveState, Waypoint } from '../types';
+import type { ProjectSettings, SpeedCurveState, Stroke, Waypoint } from '../types';
 
 /** "click.click.......click" -> [0.000, 0.100, 0.700]-style absolute times. */
 export function tapsToAbsolute(taps: number[]): string {
@@ -43,4 +43,23 @@ export function speedCurveToRemotion(sc: SpeedCurveState): string {
 /** CSS cubic-bezier string for the live preview. */
 export function bezierToCss(b: SpeedCurveState['bezier']): string {
   return `cubic-bezier(${b.join(', ')})`;
+}
+
+/** Freehand strokes -> px path + per-point seconds, replayable at recorded speed. */
+export function strokesToRemotion(strokes: Stroke[], project: ProjectSettings, fps: number): string {
+  const out = strokes.map((s) => ({
+    label: s.label,
+    duration: s.points.length ? +s.points[s.points.length - 1].t.toFixed(3) : 0,
+    frames: s.points.length ? Math.round(s.points[s.points.length - 1].t * fps) : 0,
+    path: s.points.map((p) => ({
+      x: Math.round(p.x * project.width),
+      y: Math.round(p.y * project.height),
+      t: +p.t.toFixed(3),
+    })),
+  }));
+  return (
+    `// ${strokes.length} stroke(s) — px path with per-point seconds @ ${fps}fps\n` +
+    `// replay: find segment where t matches frame/fps, lerp x/y\n` +
+    `export const strokes = ${JSON.stringify(out, null, 2)};\n`
+  );
 }

@@ -12,6 +12,7 @@ const defaultContext = {
   updatedAt: new Date().toISOString(),
   project: { width: 1920, height: 1080, fps: 30 },
   waypoints: [],
+  strokes: [],
   taps: { taps: [], unit: 's' },
   speedCurve: { duration: 1.5, bezier: [0.25, 0.1, 0.25, 1.0] },
   stageBg: null,
@@ -79,6 +80,7 @@ function sendText(res, status, text) {
 /** Agent-friendly rendering: compact prompt + raw numbers. */
 function agentView(ctx) {
   const wp = ctx.waypoints ?? [];
+  const strokes = ctx.strokes ?? [];
   const taps = ctx.taps?.taps ?? [];
   const sc = ctx.speedCurve ?? {};
   const lines = [
@@ -93,6 +95,19 @@ function agentView(ctx) {
       const px = Math.round(w.x * (ctx.project?.width ?? 1920));
       const py = Math.round(w.y * (ctx.project?.height ?? 1080));
       return `- [${i}] ${w.label ?? w.id} :: x=${w.x.toFixed(4)} y=${w.y.toFixed(4)} (${px},${py}px)`;
+    }),
+    ``,
+    `## strokes (${strokes.length}) — freehand paths, x,y normalized 0..1, t = seconds since pen-down (the speed profile)`,
+    ...strokes.map((s, i) => {
+      const pts = s.points ?? [];
+      const dur = pts.length ? pts[pts.length - 1].t : 0;
+      const xs = pts.map((p) => p.x);
+      const ys = pts.map((p) => p.y);
+      const bbox =
+        pts.length
+          ? `x[${Math.min(...xs).toFixed(2)}..${Math.max(...xs).toFixed(2)}] y[${Math.min(...ys).toFixed(2)}..${Math.max(...ys).toFixed(2)}]`
+          : 'empty';
+      return `- [${i}] ${s.label ?? s.id} :: ${pts.length} pts, ${dur.toFixed(2)}s, ${bbox} (full points in /api/context JSON)`;
     }),
     ``,
     `## tap timer (${taps.length} taps) — absolute seconds + deltas`,

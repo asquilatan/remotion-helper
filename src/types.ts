@@ -30,10 +30,26 @@ export interface StageBg {
   updatedAt: string;
 }
 
+export interface StrokePoint {
+  /** normalized 0..1 */
+  x: number;
+  /** normalized 0..1 */
+  y: number;
+  /** seconds since pen-down — this is the speed profile */
+  t: number;
+}
+
+export interface Stroke {
+  id: string;
+  label: string;
+  points: StrokePoint[];
+}
+
 export interface HelperContext {
   updatedAt: string;
   project: ProjectSettings;
   waypoints: Waypoint[];
+  strokes: Stroke[];
   taps: TapState;
   speedCurve: SpeedCurveState;
   stageBg: StageBg | null;

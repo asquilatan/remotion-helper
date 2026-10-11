@@ -49,7 +49,7 @@ h3 { margin: 14px 0 8px; font-size: 14px; text-transform: uppercase; letter-spac
 .hint { font-size: 13px; color: var(--dim); margin-bottom: 10px; }
 
 .stage { position: relative; background: #0a0b0e; border: 1px solid var(--border);
-  border-radius: 12px; overflow: hidden; cursor: crosshair; color: var(--accent2); }
+  border-radius: 12px; overflow: hidden; cursor: crosshair; color: var(--accent2); touch-action: none; }
 .stage-grid { position: absolute; inset: 0;
   background-image: linear-gradient(#ffffff10 1px, transparent 1px),
     linear-gradient(90deg, #ffffff10 1px, transparent 1px);
@@ -60,7 +60,12 @@ h3 { margin: 14px 0 8px; font-size: 14px; text-transform: uppercase; letter-spac
 .wp { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
   background: var(--accent); display: grid; place-items: center; font-size: 12px; font-weight: 700;
   border: 2px solid #fff3; z-index: 2; }
-.wp-lines { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
+.wp-lines { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+.stroke-svg { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+.stroke-line { fill: none; stroke: #fff; opacity: 0.9; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.stroke-line.draft { stroke: var(--accent); }
+.play-dot { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  background: var(--accent); z-index: 3; box-shadow: 0 0 12px #ff6b3588; pointer-events: none; }
 
 .chain { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px;
   max-height: 260px; overflow: auto; }

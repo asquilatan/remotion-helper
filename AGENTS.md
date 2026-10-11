@@ -19,7 +19,7 @@ builder. React + Vite frontend, zero-dependency Node backend.
 
 ## Agent API (source of truth for external agents)
 
-- `GET :8787/api/context` — raw `HelperContext` JSON
+- `GET :8787/api/context` — raw `HelperContext` JSON (project, waypoints, strokes, taps, speedCurve, stageBg)
 - `GET :8787/api/agent-context` — prompt-ready text (`?format=json` for text + raw)
 - `POST /api/context` — partial patch, merged + timestamped
 - `POST /api/stage-bg` — `{ "image": "data:image/<png|jpeg|webp|gif>;base64,..." }` replaces the
