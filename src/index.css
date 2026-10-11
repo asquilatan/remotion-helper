@@ -19,7 +19,7 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 
 .shell { max-width: 1500px; margin: 0 auto; padding: 20px 24px 60px; }
 .stack { display: flex; flex-direction: column; gap: 14px; }
-.bento { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: var(--gap); align-items: start; }
+.bento { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: var(--gap); align-items: stretch; }
 .bento-side .grid2 { grid-template-columns: 1fr; }
 @media (max-width: 1100px) {
   .bento { grid-template-columns: 1fr; }
@@ -49,7 +49,10 @@ body { margin: 0; background: var(--bg); color: var(--text); }
   color: var(--text); border-radius: 8px; padding: 6px 8px; font-size: 13px; }
 
 .wp-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
-.wp-side { min-height: 0; max-height: 640px; overflow-y: auto; padding-right: 4px; }
+.wp-side { min-height: 0; height: 100%; display: flex; flex-direction: column; overflow-y: auto; padding-right: 4px; }
+.wp-side .code { flex: 1 0 auto; height: auto; min-height: 120px; max-height: none; }
+#waypoints { display: flex; flex-direction: column; }
+#waypoints .wp-layout { flex: 1; min-height: 0; align-items: stretch; }
 @media (max-width: 1200px) { .wp-layout { grid-template-columns: 1fr; } }
 .grid2 { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; }
 @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
