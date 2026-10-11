@@ -97,7 +97,8 @@ h3 { margin: 14px 0 8px; font-size: 14px; text-transform: uppercase; letter-spac
 .mini.danger { color: var(--danger); }
 
 .code { background: #0a0b0e; border: 1px solid var(--border); border-radius: 10px;
-  padding: 10px; font-size: 12px; white-space: pre-wrap; max-height: 220px; overflow: auto; }
+  padding: 10px; font-size: 12px; white-space: pre-wrap; overflow: auto;
+  height: 120px; min-height: 120px; max-height: 120px; }
 
 .btn { background: var(--accent); border: none; color: white; border-radius: 9px;
   padding: 8px 14px; cursor: pointer; font-size: 13.5px; font-weight: 600; }
