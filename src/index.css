@@ -47,6 +47,14 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 .field { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--dim); }
 .field input { width: 84px; background: var(--panel2); border: 1px solid var(--border);
   color: var(--text); border-radius: 8px; padding: 6px 8px; font-size: 13px; }
+.field input[type='checkbox'] { width: auto; accent-color: var(--accent); }
+.field select { background: var(--panel2); border: 1px solid var(--border);
+  color: var(--text); border-radius: 8px; padding: 6px 8px; font-size: 13px; }
+.field.grow { flex: 1; }
+.field.grow input { width: 100%; }
+textarea.scriptbox { width: 100%; box-sizing: border-box; min-height: 120px; resize: vertical;
+  background: #0a0b0e; border: 1px solid var(--border); border-radius: 10px;
+  padding: 10px; font-size: 12.5px; line-height: 1.5; color: var(--text); font-family: inherit; }
 
 .wp-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
 .wp-side { min-height: 0; height: 100%; display: flex; flex-direction: column; overflow-y: auto; padding-right: 4px; }
@@ -103,6 +111,7 @@ h3 { margin: 14px 0 8px; font-size: 14px; text-transform: uppercase; letter-spac
 .code { background: #0a0b0e; border: 1px solid var(--border); border-radius: 10px;
   padding: 10px; font-size: 12px; white-space: pre-wrap; overflow: auto;
   height: 120px; min-height: 120px; max-height: 120px; }
+.code.tall { height: 280px; min-height: 280px; max-height: 280px; }
 
 .btn { background: var(--accent); border: none; color: white; border-radius: 9px;
   padding: 8px 14px; cursor: pointer; font-size: 13.5px; font-weight: 600; }

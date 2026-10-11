@@ -3,6 +3,7 @@ import TapTimer from './components/TapTimer';
 import MarkerPlane3D, { DEFAULT_PLANE_VIEW } from './components/MarkerPlane3D';
 import WaypointPicker from './components/WaypointPicker';
 import SpeedCurveBuilder from './components/SpeedCurveBuilder';
+import TranscriptTool from './components/TranscriptTool';
 import { createContextPusher, fetchContext, uploadStageBg } from './lib/contextSync';
 import type { HelperContext, Marker3D, PlaneView, ProjectSettings, SpeedCurveState, Stroke, SurfaceKind, TapState, Waypoint } from './types';
 
@@ -173,12 +174,16 @@ export default function App() {
           <h2 className="section-title">3D{markers3d.length ? ` (${markers3d.length})` : ''}</h2>
           <MarkerPlane3D markers={markers3d} setMarkers={setMarkers3d} view={planeView} setView={setPlaneView} surface={surface} setSurface={setSurface} />
         </section>
+        <section className="panel" id="transcript">
+          <h2 className="section-title">Transcript</h2>
+          <TranscriptTool />
+        </section>
       </main>
 
       <footer className="foot dim">
         Backend: <code>node server/context-server.mjs</code> (:8787) · agent endpoints:{' '}
-        <code>GET /api/context</code> · <code>GET /api/agent-context</code> · frontend pushes via{' '}
-        <code>POST /api/context</code>
+        <code>GET /api/context</code> · <code>GET /api/agent-context</code> · <code>GET /api/transcript</code> ·{' '}
+        <code>POST /api/align</code> · frontend pushes via <code>POST /api/context</code>
       </footer>
     </div>
   );
