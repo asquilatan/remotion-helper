@@ -15,6 +15,9 @@ dist-ssr
 # Runtime backend state (rewritten on every API write)
 server/context.json
 
+# Local transcription venv (faster-whisper) + downloaded models
+server/.tools/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

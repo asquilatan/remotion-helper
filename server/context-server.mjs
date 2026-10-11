@@ -1,11 +1,18 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFile as execFileCb } from 'node:child_process';
+import { promisify } from 'node:util';
+const execFile = promisify(execFileCb);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 8787);
 const STORE_PATH = path.join(__dirname, 'context.json');
+/** Project root: `source=` paths for /api/transcript resolve under here. */
+const ROOT = path.dirname(__dirname);
 
 /** The shared context shape. Frontend POSTs partial updates, agents GET it. */
 const defaultContext = {
@@ -23,6 +30,247 @@ const defaultContext = {
 
 const BG_MIME_TO_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
 const BG_MIME_TO_CTYPE = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
+
+/** Local speech-to-text for GET /api/transcript (audio in, .srt bytes out). */
+const TRANSCRIBE_SCRIPT = path.join(__dirname, 'transcribe.py');
+/** Forced alignment for POST /api/align (known script + audio in, timed .srt out). */
+const ALIGN_SCRIPT = path.join(__dirname, 'align.py');
+const SCRIPT_MAX_CHARS = 100_000;
+const TRANSCRIBE_TIMEOUT_MS = Number(process.env.TRANSCRIBE_TIMEOUT_MS ?? 600_000);
+const FFMPEG_TIMEOUT_MS = Number(process.env.FFMPEG_TIMEOUT_MS ?? 300_000);
+const WHISPER_MODEL_DEFAULT = process.env.WHISPER_MODEL ?? 'base';
+const WHISPER_MODELS = new Set([
+  'tiny', 'tiny.en', 'base', 'base.en', 'small', 'small.en',
+  'medium', 'medium.en', 'large-v1', 'large-v2', 'large-v3',
+  'large-v3-turbo', 'turbo',
+]);
+const AUDIO_EXTS = new Set(['mp3', 'wav', 'm4a', 'aac', 'ogg', 'oga', 'opus', 'flac', 'wma', 'aiff', 'aif']);
+const VIDEO_EXTS = new Set(['mp4', 'mov', 'mkv', 'webm', 'avi', 'm4v', 'mpg', 'mpeg']);
+
+function whisperPython() {
+  if (process.env.WHISPER_PYTHON && fs.existsSync(process.env.WHISPER_PYTHON)) {
+    return process.env.WHISPER_PYTHON;
+  }
+  const venv =
+    process.platform === 'win32'
+      ? path.join(__dirname, '.tools', 'whisper-env', 'Scripts', 'python.exe')
+      : path.join(__dirname, '.tools', 'whisper-env', 'bin', 'python');
+  if (fs.existsSync(venv)) return venv;
+  return 'python'; // last resort: whatever python is on PATH
+}
+
+/** Resolve a repo-relative `source=` value to a real media file under ROOT. */
+function resolveMediaSource(source) {
+  const bad = (status, error) => ({ ok: false, status, error });
+  if (typeof source !== 'string' || !source.trim()) {
+    return bad(400, 'missing ?source= — repo-relative media path, e.g. /api/transcript?source=audio/01-at_its_core.mp3');
+  }
+  const s = source.trim().replace(/^\/+/, '');
+  if (/^[a-zA-Z]:[\\/]/.test(s) || s.startsWith('\\\\') || path.isAbsolute(s) || /:\/\/|\0/.test(s)) {
+    return bad(400, 'source must be a repo-relative path, not an absolute path or URL');
+  }
+  const norm = path.normalize(s);
+  if (norm === '..' || norm.startsWith(`..${path.sep}`)) {
+    return bad(400, 'source must stay inside the project directory');
+  }
+  const abs = path.join(ROOT, norm);
+  const rootWithSep = ROOT.endsWith(path.sep) ? ROOT : ROOT + path.sep;
+  if (abs.toLowerCase() !== ROOT.toLowerCase() && !abs.toLowerCase().startsWith(rootWithSep.toLowerCase())) {
+    return bad(400, 'source must stay inside the project directory');
+  }
+  const isFile = (p) => {
+    try {
+      return fs.statSync(p).isFile() ? p : null;
+    } catch {
+      return null;
+    }
+  };
+  const direct = isFile(abs);
+  if (direct) return { ok: true, file: direct };
+  // Basename without extension: probe known media extensions (audio first).
+  if (!path.extname(abs)) {
+    for (const ext of [...AUDIO_EXTS, ...VIDEO_EXTS]) {
+      const hit = isFile(`${abs}.${ext}`);
+      if (hit) return { ok: true, file: hit };
+    }
+  }
+  return bad(404, `no such media file: ${norm} (resolved inside project root)`);
+}
+
+/** Resolve a repo-relative text `scriptPath=` value to a real .txt file under ROOT. */
+function resolveScriptPath(p) {
+  const bad = (status, error) => ({ ok: false, status, error });
+  if (typeof p !== 'string' || !p.trim()) {
+    return bad(400, 'scriptPath must be a repo-relative path to a .txt or .md file');
+  }
+  const s = p.trim().replace(/^\/+/, '');
+  if (/^[a-zA-Z]:[\\/]/.test(s) || s.startsWith('\\\\') || path.isAbsolute(s) || /:\/\/|\0/.test(s)) {
+    return bad(400, 'scriptPath must be a repo-relative path, not an absolute path or URL');
+  }
+  const norm = path.normalize(s);
+  if (norm === '..' || norm.startsWith(`..${path.sep}`)) {
+    return bad(400, 'scriptPath must stay inside the project directory');
+  }
+  const abs = path.join(ROOT, norm);
+  const rootWithSep = ROOT.endsWith(path.sep) ? ROOT : ROOT + path.sep;
+  if (abs.toLowerCase() !== ROOT.toLowerCase() && !abs.toLowerCase().startsWith(rootWithSep.toLowerCase())) {
+    return bad(400, 'scriptPath must stay inside the project directory');
+  }
+  const withExt = path.extname(abs) ? abs : `${abs}.txt`;
+  if (!['.txt', '.md'].includes(path.extname(withExt).toLowerCase())) {
+    return bad(415, 'scriptPath must point to a .txt or .md file');
+  }
+  try {
+    if (!fs.statSync(withExt).isFile()) return bad(404, `no such script file: ${norm}`);
+  } catch {
+    return bad(404, `no such script file: ${norm}`);
+  }
+  return { ok: true, file: withExt };
+}
+
+function srtDownloadName(file) {
+  const base = path.basename(file, path.extname(file)).replace(/["\r\n\\]/g, '_') || 'transcript';
+  return `${base}.srt`;
+}
+
+function assertMediaExt(file) {
+  const ext = path.extname(file).slice(1).toLowerCase();
+  if (!AUDIO_EXTS.has(ext) && !VIDEO_EXTS.has(ext)) {
+    const err = new Error(`unsupported media type .${ext} — audio: ${[...AUDIO_EXTS].join(', ')}; video: ${[...VIDEO_EXTS].join(', ')}`);
+    err.status = 415;
+    throw err;
+  }
+}
+
+/** Normalize any audio/video file to 16kHz mono wav in a fresh temp dir. */
+async function prepareWav(file) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'transcript-'));
+  const wav = path.join(tmp, 'audio.wav');
+  try {
+    await execFile('ffmpeg', ['-y', '-v', 'error', '-i', file, '-ac', '1', '-ar', '16000', wav], {
+      timeout: FFMPEG_TIMEOUT_MS,
+    });
+  } catch (e) {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    if (e?.code === 'ENOENT') {
+      const err = new Error('ffmpeg not found on PATH — install it (e.g. winget install Gyan.FFmpeg)');
+      err.status = 503;
+      throw err;
+    }
+    if (e?.killed) {
+      const err = new Error('ffmpeg timed out');
+      err.status = 504;
+      throw err;
+    }
+    const detail = String(e?.stderr ?? e?.message ?? e).slice(-500).trim();
+    const err = new Error(detail ? `audio extraction failed: ${detail}` : 'audio extraction failed');
+    err.status = 500;
+    throw err;
+  }
+  return { tmp, wav };
+}
+
+function mapEngineError(e, what) {
+  if (e?.code === 'ENOENT') {
+    const err = new Error(
+      `transcription engine not found (${e.path ?? 'python/faster-whisper missing'}) — ` +
+        'create server/.tools/whisper-env with faster-whisper, or set WHISPER_PYTHON',
+    );
+    err.status = 503;
+    return err;
+  }
+  if (e?.killed) {
+    const err = new Error(`${what} timed out`);
+    err.status = 504;
+    return err;
+  }
+  if (e?.code === 4) {
+    const err = new Error('no speech detected in audio');
+    err.status = 422;
+    return err;
+  }
+  const detail = String(e?.stderr ?? e?.message ?? e).slice(-500).trim();
+  const err = new Error(detail ? `${what} failed: ${detail}` : `${what} failed`);
+  err.status = 500;
+  return err;
+}
+
+/** Align a known script to `file`'s audio; returns timed .srt bytes. */
+async function alignToSrt(file, script, model, stripMarkdown = false) {
+  assertMediaExt(file);
+  if (!fs.existsSync(ALIGN_SCRIPT)) {
+    const err = new Error('aligner missing: server/align.py not found');
+    err.status = 503;
+    throw err;
+  }
+  const { tmp, wav } = await prepareWav(file);
+  try {
+    const scriptPath = path.join(tmp, 'script.txt');
+    fs.writeFileSync(scriptPath, script, 'utf8');
+    const srtPath = path.join(tmp, 'out.srt');
+    const args = [ALIGN_SCRIPT, wav, '--script-file', scriptPath, '--model', model, '--output', srtPath];
+    if (stripMarkdown) args.push('--strip-markdown');
+    await execFile(whisperPython(), args, { timeout: TRANSCRIBE_TIMEOUT_MS, maxBuffer: 10 * 1024 * 1024 });
+    return fs.readFileSync(srtPath);
+  } catch (e) {
+    if (e?.status) throw e;
+    throw mapEngineError(e, 'alignment');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+/** Transcribe `file` (audio, or video via ffmpeg audio extraction) to .srt bytes. */
+async function transcribeToSrt(file, model) {
+  const ext = path.extname(file).slice(1).toLowerCase();
+  if (!AUDIO_EXTS.has(ext) && !VIDEO_EXTS.has(ext)) {
+    const err = new Error(`unsupported media type .${ext} — audio: ${[...AUDIO_EXTS].join(', ')}; video: ${[...VIDEO_EXTS].join(', ')}`);
+    err.status = 415;
+    throw err;
+  }
+  if (!fs.existsSync(TRANSCRIBE_SCRIPT)) {
+    const err = new Error('transcriber missing: server/transcribe.py not found');
+    err.status = 503;
+    throw err;
+  }
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'transcript-'));
+  try {
+    // Normalize everything (incl. video) to 16kHz mono wav for whisper.
+    const wav = path.join(tmp, 'audio.wav');
+    await execFile('ffmpeg', ['-y', '-v', 'error', '-i', file, '-ac', '1', '-ar', '16000', wav], {
+      timeout: FFMPEG_TIMEOUT_MS,
+    });
+    const srtPath = path.join(tmp, 'out.srt');
+    const args = [TRANSCRIBE_SCRIPT, wav, '--model', model, '--output', srtPath];
+    await execFile(whisperPython(), args, { timeout: TRANSCRIBE_TIMEOUT_MS });
+    return fs.readFileSync(srtPath);
+  } catch (e) {
+    if (e?.code === 'ENOENT' && e?.path === 'ffmpeg') {
+      const err = new Error('ffmpeg not found on PATH — install it (e.g. winget install Gyan.FFmpeg)');
+      err.status = 503;
+      throw err;
+    }
+    if (e?.code === 'ENOENT') {
+      const err = new Error(
+        `transcription engine not found (${e.path ?? 'python/faster-whisper missing'}) — ` +
+          'create server/.tools/whisper-env with faster-whisper, or set WHISPER_PYTHON',
+      );
+      err.status = 503;
+      throw err;
+    }
+    if (e?.killed) {
+      const err = new Error('transcription timed out');
+      err.status = 504;
+      throw err;
+    }
+    const detail = String(e?.stderr ?? e?.message ?? e).slice(-500).trim();
+    const err = new Error(detail ? `transcription failed: ${detail}` : 'transcription failed');
+    err.status = 500;
+    throw err;
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
 
 function bgFile() {
   try {
@@ -130,6 +378,30 @@ const apiHelp = {
       method: 'POST',
       path: '/api/reset',
       description: 'Restore default context AND delete the stored background image. Use sparingly.',
+    },
+    {
+      method: 'GET',
+      path: '/api/transcript?source=<relative-path>[&model=<size>]',
+      description:
+        'Transcribe an audio (or video, audio-extracted via ffmpeg) file to SubRip bytes ' +
+        'with local whisper. source is a repo-relative media path, extension optional ' +
+        '(e.g. ?source=audio/01-at_its_core). Fresh transcription per request (no cache).',
+      query: { source: 'required, repo-relative media path', model: `"base" default; one of ${[...WHISPER_MODELS].join(', ')}` },
+      response:
+        'Raw .srt bytes: Content-Type application/x-subrip, ' +
+        'Content-Disposition attachment, ETag (If-None-Match -> 304). Errors are JSON.',
+    },
+    {
+      method: 'POST',
+      path: '/api/align',
+      description:
+        'Forced alignment: you already know what is said, so send the script and get it ' +
+        'back timed to the audio (whisper word timestamps matched to your sentences). ' +
+        'Each script sentence is one SRT cue; newlines force cue breaks.',
+      body: `{ "source": "<repo-relative media path, extension optional>", "script"?: "<inline text>", "scriptPath"?: "<repo-relative .txt/.md>", "model"?: "<size>", "markdown"?: true } — script or scriptPath (not both); .md files are stripped of formatting automatically; max ~${2_000_000}B body`,
+      response:
+        'Raw .srt bytes with YOUR script text, timed: Content-Type application/x-subrip, ' +
+        'Content-Disposition attachment, ETag (If-None-Match -> 304). Errors are JSON.',
     },
   ],
 };
@@ -380,6 +652,136 @@ const server = http.createServer((req, res) => {
       } catch {
         sendJson(res, 400, { error: 'invalid JSON body' });
       }
+    });
+    return;
+  }
+
+  // Audio/video in, .srt file bytes out (curl -o'able). No cache: fresh transcription.
+  if (req.method === 'GET' && url.pathname === '/api/transcript') {
+    (async () => {
+      const model = url.searchParams.get('model') ?? WHISPER_MODEL_DEFAULT;
+      if (!WHISPER_MODELS.has(model)) {
+        sendJson(res, 400, { error: `unknown model "${model}" — one of ${[...WHISPER_MODELS].join(', ')}` });
+        return;
+      }
+      const found = resolveMediaSource(url.searchParams.get('source'));
+      if (!found.ok) {
+        sendJson(res, found.status, { error: found.error });
+        return;
+      }
+      try {
+        const srt = await transcribeToSrt(found.file, model);
+        const etag = `"${crypto.createHash('sha1').update(srt).digest('hex')}"`;
+        if (req.headers['if-none-match'] === etag) {
+          res.writeHead(304, { ETag: etag, 'Access-Control-Allow-Origin': '*' });
+          res.end();
+          return;
+        }
+        const name = srtDownloadName(found.file);
+        res.writeHead(200, {
+          'Content-Type': 'application/x-subrip; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${name}"`,
+          ETag: etag,
+          'Cache-Control': 'no-store',
+          'Access-Control-Allow-Origin': '*',
+          'Content-Length': srt.length,
+        });
+        res.end(srt);
+      } catch (e) {
+        if (!res.writableEnded) sendJson(res, e?.status ?? 500, { error: e?.message ?? 'transcription failed' });
+      }
+    })().catch((e) => {
+      if (!res.writableEnded) sendJson(res, 500, { error: e?.message ?? 'transcription failed' });
+    });
+    return;
+  }
+
+  // Known script + audio in, timed .srt file bytes out (curl -o'able via POST).
+  if (req.method === 'POST' && url.pathname === '/api/align') {
+    let raw = '';
+    req.on('data', (c) => {
+      raw += c;
+      if (raw.length > 2_000_000) req.destroy();
+    });
+    req.on('end', () => {
+      (async () => {
+        let body;
+        try {
+          body = raw ? JSON.parse(raw) : {};
+        } catch {
+          sendJson(res, 400, { error: 'invalid JSON body' });
+          return;
+        }
+        const model = body.model ?? WHISPER_MODEL_DEFAULT;
+        if (!WHISPER_MODELS.has(model)) {
+          sendJson(res, 400, { error: `unknown model "${model}" — one of ${[...WHISPER_MODELS].join(', ')}` });
+          return;
+        }
+        if (typeof body.script !== 'string' || !body.script.trim()) {
+          if (typeof body.scriptPath === 'string' && body.scriptPath.trim()) {
+            const sp = resolveScriptPath(body.scriptPath);
+            if (!sp.ok) {
+              sendJson(res, sp.status, { error: sp.error });
+              return;
+            }
+            try {
+              const text = fs.readFileSync(sp.file, 'utf8');
+              if (!text.trim()) {
+                sendJson(res, 400, { error: `script file is empty: ${body.scriptPath}` });
+                return;
+              }
+              if (text.length > SCRIPT_MAX_CHARS) {
+                sendJson(res, 400, { error: `script file too long (${text.length} chars, max ${SCRIPT_MAX_CHARS})` });
+                return;
+              }
+              body.script = text;
+              // .md script files are markdown: strip formatting before aligning.
+              if (sp.file.toLowerCase().endsWith('.md')) body.markdown = true;
+            } catch {
+              sendJson(res, 500, { error: `could not read script file: ${body.scriptPath}` });
+              return;
+            }
+          } else {
+            sendJson(res, 400, { error: 'missing "script" (inline text) or "scriptPath" (repo-relative .txt/.md) — e.g. { "source": "audio/voice.mp3", "script": "At its core, ..." }' });
+            return;
+          }
+        } else if (typeof body.scriptPath === 'string' && body.scriptPath.trim()) {
+          sendJson(res, 400, { error: 'pass either "script" or "scriptPath", not both' });
+          return;
+        }
+        if (body.script.length > SCRIPT_MAX_CHARS) {
+          sendJson(res, 400, { error: `script too long (${body.script.length} chars, max ${SCRIPT_MAX_CHARS})` });
+          return;
+        }
+        const found = resolveMediaSource(body.source);
+        if (!found.ok) {
+          sendJson(res, found.status, { error: found.error });
+          return;
+        }
+        try {
+          const srt = await alignToSrt(found.file, body.script, model, body.markdown === true);
+          const etag = `"${crypto.createHash('sha1').update(srt).digest('hex')}"`;
+          if (req.headers['if-none-match'] === etag) {
+            res.writeHead(304, { ETag: etag, 'Access-Control-Allow-Origin': '*' });
+            res.end();
+            return;
+          }
+          const name = srtDownloadName(found.file);
+          res.writeHead(200, {
+            'Content-Type': 'application/x-subrip; charset=utf-8',
+            'Content-Disposition': `attachment; filename="${name}"`,
+            ETag: etag,
+            'Cache-Control': 'no-store',
+            'Access-Control-Allow-Origin': '*',
+            'Content-Length': srt.length,
+          });
+          res.end(srt);
+        } catch (e) {
+          if (!res.writableEnded) sendJson(res, e?.status ?? 500, { error: e?.message ?? 'alignment failed' });
+        }
+      })().catch((e) => {
+        if (!res.writableEnded) sendJson(res, 500, { error: e?.message ?? 'alignment failed' });
+      });
     });
     return;
   }
