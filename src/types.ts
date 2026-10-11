@@ -51,6 +51,17 @@ export interface PlaneMarker {
   /** normalized 0..1 on the 3D plane, y-down like 2D */
   x: number;
   y: number;
+  /** plane units off the surface (0 = on the plane) */
+  z: number;
+}
+
+export type Vec3 = [number, number, number];
+
+export interface PlaneView {
+  /** world-space camera position — the rotation angle you left the plane at */
+  position: Vec3;
+  /** orbit target */
+  target: Vec3;
 }
 
 export interface HelperContext {
@@ -59,6 +70,7 @@ export interface HelperContext {
   waypoints: Waypoint[];
   strokes: Stroke[];
   planeMarkers: PlaneMarker[];
+  planeView: PlaneView;
   taps: TapState;
   speedCurve: SpeedCurveState;
   stageBg: StageBg | null;

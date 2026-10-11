@@ -14,6 +14,7 @@ const defaultContext = {
   waypoints: [],
   strokes: [],
   planeMarkers: [],
+  planeView: { position: [1.1, -1.7, 1.5], target: [0, 0, 0] },
   taps: { taps: [], unit: 's' },
   speedCurve: { duration: 1.5, bezier: [0.25, 0.1, 0.25, 1.0] },
   stageBg: null,
@@ -85,7 +86,8 @@ const apiHelp = {
         '{ updatedAt, project: { width, height, fps }, ' +
         'waypoints: [{ id, x, y, label }] (x/y normalized 0..1), ' +
         'strokes: [{ id, label, points: [{ x, y, t }] }] (t = seconds since pen-down, the speed profile), ' +
-        'planeMarkers: [{ id, label, x, y }] (normalized 0..1 on the 3D plane), ' +
+        'planeMarkers: [{ id, label, x, y, z }] (x,y normalized 0..1, z in plane units), ' +
+        'planeView: { position: [x,y,z], target: [x,y,z] } (world-space camera angle), ' +
         'taps: { taps: [seconds...], unit }, ' +
         'speedCurve: { duration, bezier: [x1, y1, x2, y2] }, ' +
         'stageBg: { url, updatedAt } | null }',
@@ -149,6 +151,7 @@ function agentView(ctx) {
   const wp = ctx.waypoints ?? [];
   const strokes = ctx.strokes ?? [];
   const planeMarkers = ctx.planeMarkers ?? [];
+  const pv = ctx.planeView ?? {};
   const taps = ctx.taps?.taps ?? [];
   const sc = ctx.speedCurve ?? {};
   const lines = [
@@ -178,8 +181,11 @@ function agentView(ctx) {
       return `- [${i}] ${s.label ?? s.id} :: ${pts.length} pts, ${dur.toFixed(2)}s, ${bbox} (full points in /api/context JSON)`;
     }),
     ``,
-    `## 3d plane markers (${planeMarkers.length}) — normalized 0..1 on the rotatable plane, y-down like 2D`,
-    ...planeMarkers.map((m, i) => `- [${i}] ${m.label ?? m.id} :: x=${m.x.toFixed(4)} y=${m.y.toFixed(4)}`),
+    `## 3d plane markers (${planeMarkers.length}) — x,y normalized 0..1 (y-down), z in plane units`,
+    Array.isArray(pv.position)
+      ? `- camera: pos(${pv.position.join(', ')}) tgt(${Array.isArray(pv.target) ? pv.target.join(', ') : '?'})`
+      : `- camera: ?`,
+    ...planeMarkers.map((m, i) => `- [${i}] ${m.label ?? m.id} :: x=${m.x.toFixed(4)} y=${m.y.toFixed(4)} z=${(m.z ?? 0).toFixed(4)}`),
     ``,
     `## tap timer (${taps.length} taps) — absolute seconds + deltas`,
     taps.length

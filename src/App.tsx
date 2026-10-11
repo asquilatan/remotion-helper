@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import TapTimer from './components/TapTimer';
-import MarkerPlane3D from './components/MarkerPlane3D';
+import MarkerPlane3D, { DEFAULT_PLANE_VIEW } from './components/MarkerPlane3D';
 import WaypointPicker from './components/WaypointPicker';
 import SpeedCurveBuilder from './components/SpeedCurveBuilder';
 import { createContextPusher, fetchContext, uploadStageBg } from './lib/contextSync';
-import type { HelperContext, PlaneMarker, ProjectSettings, SpeedCurveState, Stroke, TapState, Waypoint } from './types';
+import type { HelperContext, PlaneMarker, PlaneView, ProjectSettings, SpeedCurveState, Stroke, TapState, Waypoint } from './types';
 
 const pusher = createContextPusher(400);
 
@@ -22,6 +22,7 @@ export default function App() {
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [planeMarkers, setPlaneMarkers] = useState<PlaneMarker[]>([]);
+  const [planeView, setPlaneView] = useState<PlaneView>(DEFAULT_PLANE_VIEW);
   const [taps, setTaps] = useState<TapState>({ taps: [] });
   const [speedCurve, setSpeedCurve] = useState<SpeedCurveState>({
     duration: 1.5,
@@ -45,8 +46,8 @@ export default function App() {
 
   // Push every change to the backend so GET /api/context stays fresh for your agent.
   const ctxPatch = useMemo(
-    () => ({ project, waypoints, strokes, planeMarkers, taps, speedCurve }),
-    [project, waypoints, strokes, planeMarkers, taps, speedCurve],
+    () => ({ project, waypoints, strokes, planeMarkers, planeView, taps, speedCurve }),
+    [project, waypoints, strokes, planeMarkers, planeView, taps, speedCurve],
   );
   useEffect(() => {
     pusher.push(ctxPatch);
@@ -62,6 +63,7 @@ export default function App() {
       setWaypoints(ctx.waypoints ?? []);
       setStrokes(ctx.strokes ?? []);
       setPlaneMarkers(ctx.planeMarkers ?? []);
+      setPlaneView(ctx.planeView ?? DEFAULT_PLANE_VIEW);
       setTaps(ctx.taps ?? { taps: [] });
       setSpeedCurve(ctx.speedCurve);
       setStageBg(null);
@@ -145,7 +147,7 @@ export default function App() {
         </section>
         <section className="panel bento-wide" id="plane3d">
           <h2 className="section-title">3D plane{planeMarkers.length ? ` (${planeMarkers.length})` : ''}</h2>
-          <MarkerPlane3D markers={planeMarkers} setMarkers={setPlaneMarkers} />
+          <MarkerPlane3D markers={planeMarkers} setMarkers={setPlaneMarkers} view={planeView} setView={setPlaneView} />
         </section>
       </main>
 

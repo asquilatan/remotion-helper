@@ -1,4 +1,4 @@
-import type { PlaneMarker, ProjectSettings, SpeedCurveState, Stroke, Waypoint } from '../types';
+import type { PlaneMarker, PlaneView, ProjectSettings, SpeedCurveState, Stroke, Waypoint } from '../types';
 
 /** "click.click.......click" -> [0.000, 0.100, 0.700]-style absolute times. */
 export function tapsToAbsolute(taps: number[]): string {
@@ -45,15 +45,16 @@ export function bezierToCss(b: SpeedCurveState['bezier']): string {
   return `cubic-bezier(${b.join(', ')})`;
 }
 
-/** 3D plane markers -> normalized coords (map x/y onto your plane in Remotion). */
-export function markers3DToRemotion(markers: PlaneMarker[]): string {
+/** 3D plane markers + camera — reproduce the exact 3D setup in Remotion. */
+export function markers3DToRemotion(markers: PlaneMarker[], view: PlaneView): string {
   return (
-    `// ${markers.length} 3D-plane marker(s) — x,y normalized 0..1, y-down like 2D\n` +
+    `// ${markers.length} 3D-plane marker(s) — x,y normalized 0..1 (y-down), z in plane units\n` +
     `export const planeMarkers = ${JSON.stringify(
-      markers.map((m) => ({ x: m.x, y: m.y })),
+      markers.map((m) => ({ x: m.x, y: m.y, z: m.z })),
       null,
       2,
-    )};\n`
+    )};\n` +
+    `export const planeCamera = ${JSON.stringify(view, null, 2)};\n`
   );
 }
 

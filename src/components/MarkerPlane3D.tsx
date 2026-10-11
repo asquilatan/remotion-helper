@@ -1,13 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import type { PlaneMarker } from '../types';
+import type { PlaneMarker, PlaneView, Vec3 } from '../types';
 import { markers3DToRemotion } from '../lib/remotionExport';
 
 interface Props {
   markers: PlaneMarker[];
   setMarkers: (m: PlaneMarker[]) => void;
+  view: PlaneView;
+  setView: (v: PlaneView) => void;
 }
+
+export const DEFAULT_PLANE_VIEW: PlaneView = {
+  position: [1.1, -1.7, 1.5],
+  target: [0, 0, 0],
+};
+
+const round3 = (v: Vec3): Vec3 => v.map((n) => +n.toFixed(4)) as Vec3;
 
 let n = 0;
 const nid = () => `m3d${Date.now().toString(36)}${(n++).toString(36)}`;
@@ -34,7 +43,7 @@ function makeLabel(text: string): THREE.Sprite {
 const sphereGeo = new THREE.SphereGeometry(0.035, 24, 16);
 const sphereMat = new THREE.MeshBasicMaterial({ color: '#ff6b35' });
 
-export default function MarkerPlane3D({ markers, setMarkers }: Props) {
+export default function MarkerPlane3D({ markers, setMarkers, view, setView }: Props) {
   const [mode, setMode] = useState<'orbit' | 'place'>('orbit');
   const boxRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -43,6 +52,19 @@ export default function MarkerPlane3D({ markers, setMarkers }: Props) {
   const planeRef = useRef<THREE.Mesh | null>(null);
   const groupRef = useRef<THREE.Group | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
+  // View captured at mount for camera init; later `view` changes (reset) are applied below.
+  const initView = useRef(view);
+  // Latest commit callback for the controls 'end' listener (bound once at mount).
+  const commitRef = useRef(() => {});
+  commitRef.current = () => {
+    const cam = cameraRef.current;
+    const ctl = controlsRef.current;
+    if (!cam || !ctl) return;
+    setView({
+      position: round3([cam.position.x, cam.position.y, cam.position.z]),
+      target: round3([ctl.target.x, ctl.target.y, ctl.target.z]),
+    });
+  };
 
   // Scene: built once. Camera orbits; the plane itself never moves.
   useEffect(() => {
@@ -58,7 +80,7 @@ export default function MarkerPlane3D({ markers, setMarkers }: Props) {
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
-    camera.position.set(1.1, -1.7, 1.5);
+    camera.position.fromArray(initView.current.position);
     cameraRef.current = camera;
 
     const plane = new THREE.Mesh(
@@ -90,7 +112,11 @@ export default function MarkerPlane3D({ markers, setMarkers }: Props) {
     controls.dampingFactor = 0.12;
     controls.minDistance = 0.8;
     controls.maxDistance = 8;
+    controls.target.fromArray(initView.current.target);
     controlsRef.current = controls;
+    // Commit the angle to context once per interaction (release), never per move.
+    const onEnd = () => commitRef.current();
+    controls.addEventListener('end', onEnd);
 
     const fit = () => {
       const w = box.clientWidth || 1;
@@ -114,6 +140,7 @@ export default function MarkerPlane3D({ markers, setMarkers }: Props) {
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
+      controls.removeEventListener('end', onEnd);
       controls.dispose();
       renderer.dispose();
       box.removeChild(renderer.domElement);
@@ -130,6 +157,15 @@ export default function MarkerPlane3D({ markers, setMarkers }: Props) {
   useEffect(() => {
     if (controlsRef.current) controlsRef.current.enabled = mode === 'orbit';
   }, [mode]);
+
+  // Apply externally-changed views (e.g. Reset all) to the live camera.
+  useEffect(() => {
+    const cam = cameraRef.current;
+    const ctl = controlsRef.current;
+    if (!cam || !ctl) return;
+    cam.position.fromArray(view.position);
+    ctl.target.fromArray(view.target);
+  }, [view]);
 
   // Rebuild marker meshes when the list changes (scene/camera untouched).
   useEffect(() => {
@@ -153,9 +189,9 @@ export default function MarkerPlane3D({ markers, setMarkers }: Props) {
       const wx = m.x * 2 - 1;
       const wy = 1 - m.y * 2;
       const dot = new THREE.Mesh(sphereGeo, sphereMat);
-      dot.position.set(wx, wy, 0.03);
+      dot.position.set(wx, wy, m.z + 0.03);
       const tag = makeLabel(String(i + 1));
-      tag.position.set(wx, wy, 0.16);
+      tag.position.set(wx, wy, m.z + 0.16);
       group.add(dot, tag);
     });
   }, [markers]);
@@ -177,10 +213,10 @@ export default function MarkerPlane3D({ markers, setMarkers }: Props) {
     if (!hit) return;
     const x = Math.min(1, Math.max(0, (hit.point.x + 1) / 2));
     const y = Math.min(1, Math.max(0, (1 - hit.point.y) / 2));
-    setMarkers([...markers, { id: nid(), label: `M${markers.length + 1}`, x: +x.toFixed(4), y: +y.toFixed(4) }]);
+    setMarkers([...markers, { id: nid(), label: `M${markers.length + 1}`, x: +x.toFixed(4), y: +y.toFixed(4), z: 0 }]);
   };
 
-  const snippet = markers3DToRemotion(markers);
+  const snippet = markers3DToRemotion(markers, view);
 
   return (
     <div className="grid2">
@@ -216,6 +252,10 @@ export default function MarkerPlane3D({ markers, setMarkers }: Props) {
             Undo last
           </button>
         </div>
+        <div className="hint mono" style={{ marginTop: 8 }}>
+          cam [{view.position.map((v) => v.toFixed(2)).join(', ')}] → tgt [
+          {view.target.map((v) => v.toFixed(2)).join(', ')}] · saved on release
+        </div>
       </div>
       <div>
         <h3>Plane markers ({markers.length})</h3>
@@ -223,7 +263,7 @@ export default function MarkerPlane3D({ markers, setMarkers }: Props) {
           {markers.map((m, i) => (
             <li key={m.id}>
               <code>
-                {m.label}: {m.x.toFixed(4)}, {m.y.toFixed(4)}
+                {m.label}: {m.x.toFixed(4)}, {m.y.toFixed(4)}, {m.z.toFixed(4)}
                 <span className="dim"> · #{i + 1} on plane</span>
               </code>
               <span className="mini-row">
