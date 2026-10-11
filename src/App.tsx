@@ -115,8 +115,8 @@ export default function App() {
         <code className="dim mono agent-hint">agent → GET :8787/api/context</code>
       </div>
 
-      <main className="stack">
-        <section className="panel" id="waypoints">
+      <main className="bento">
+        <section className="panel bento-main" id="waypoints">
           <h2 className="section-title">Waypoints{waypoints.length ? ` (${waypoints.length})` : ''}</h2>
           <WaypointPicker
             waypoints={waypoints}
@@ -132,11 +132,11 @@ export default function App() {
             onClearBg={async () => setStageBg(await uploadStageBg(null))}
           />
         </section>
-        <section className="panel" id="timer">
+        <section className="panel bento-side" id="timer">
           <h2 className="section-title">Tap timer{taps.taps.length ? ` (${taps.taps.length})` : ''}</h2>
           <TapTimer taps={taps} setTaps={setTaps} fps={project.fps} />
         </section>
-        <section className="panel" id="curve">
+        <section className="panel bento-side" id="curve">
           <h2 className="section-title">Speed curve</h2>
           <SpeedCurveBuilder curve={speedCurve} setCurve={setSpeedCurve} />
         </section>
