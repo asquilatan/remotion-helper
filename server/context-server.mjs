@@ -109,6 +109,13 @@ const apiHelp = {
     },
     {
       method: 'POST',
+      path: '/api/project',
+      description: 'Agent-settable project settings. Validated, merged into context.project.',
+      body: '{ "width"?: 1..16384, "height"?: 1..16384, "fps"?: 1..240 } — any subset',
+      response: '{ "project": { width, height, fps }, "context": <HelperContext> }',
+    },
+    {
+      method: 'POST',
       path: '/api/stage-bg',
       description: 'Replace (or with {"image": null}, clear) the waypoint stage background.',
       body: '{ "image": "data:image/<png|jpeg|webp|gif>;base64,..." } — max ~10MB decoded',
@@ -341,6 +348,39 @@ const server = http.createServer((req, res) => {
     } catch {
       sendJson(res, 500, { error: 'could not read stage background' });
     }
+    return;
+  }
+
+  // Agent-settable project settings (w/h/fps). Validated, merged, persisted.
+  if (req.method === 'POST' && url.pathname === '/api/project') {
+    let raw = '';
+    req.on('data', (c) => {
+      raw += c;
+      if (raw.length > 10_000) req.destroy();
+    });
+    req.on('end', () => {
+      try {
+        const body = raw ? JSON.parse(raw) : {};
+        const clean = {};
+        for (const [k, min, max] of [
+          ['width', 1, 16384],
+          ['height', 1, 16384],
+          ['fps', 1, 240],
+        ]) {
+          if (body[k] === undefined) continue;
+          const v = Math.round(Number(body[k]));
+          if (!Number.isFinite(v) || v < min || v > max) {
+            sendJson(res, 400, { error: `${k} must be a number ${min}..${max}` });
+            return;
+          }
+          clean[k] = v;
+        }
+        context = save({ ...context, project: { ...context.project, ...clean } });
+        sendJson(res, 200, { project: context.project, context });
+      } catch {
+        sendJson(res, 400, { error: 'invalid JSON body' });
+      }
+    });
     return;
   }
 

@@ -45,6 +45,28 @@ export default function App() {
       .catch(() => setSync('error'));
   }, []);
 
+  // Pick up agent-set project (w/h/fps) without clobbering local edits:
+  // applied only when the server values actually differ, so this converges.
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const ctx = await fetchContext();
+        const p = ctx.project;
+        if (!p) return;
+        setProject((prev) => {
+          const num = (v: unknown, fb: number) =>
+            Number.isFinite(+String(v)) && +String(v) > 0 ? Math.round(+String(v)) : fb;
+          const next = { width: num(p.width, prev.width), height: num(p.height, prev.height), fps: num(p.fps, prev.fps) };
+          return next.width === prev.width && next.height === prev.height && next.fps === prev.fps
+            ? prev
+            : next;
+        });
+      } catch {
+        /* backend down — the sync pill already reports that */
+      }
+    }, 2500);
+    return () => clearInterval(id);
+  }, []);
   // Push every change to the backend so GET /api/context stays fresh for your agent.
   const ctxPatch = useMemo(
     () => ({ project, waypoints, strokes, markers3d, surface, planeView, taps, speedCurve }),

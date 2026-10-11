@@ -24,6 +24,7 @@ builder. React + Vite frontend, zero-dependency Node backend.
 - `GET :8787/api/context` — raw `HelperContext` JSON (project, waypoints, strokes, markers3d, surface, planeView, taps, speedCurve, stageBg)
 - `GET :8787/api/agent-context` — prompt-ready text (`?format=json` for text + raw)
 - `POST /api/context` — partial patch, merged + timestamped
+- `POST /api/project` — agent-settable `{width?, height?, fps?}` (validated ranges); UI picks it up within ~2.5s
 - `POST /api/stage-bg` — `{ "image": "data:image/<png|jpeg|webp|gif>;base64,..." }` replaces the
   waypoint stage background (or `{ "image": null }` to clear); file served at `GET /api/stage-bg`
 - `POST /api/reset` — restore defaults (use sparingly)
