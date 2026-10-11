@@ -56,6 +56,71 @@ function save(ctx) {
 
 let context = load();
 
+/** Machine-readable API description so polling agents can discover capabilities. */
+const apiHelp = {
+  name: 'remotion-helper api',
+  version: 1,
+  contract:
+    'The React UI is the writer: it pushes state via POST /api/context. ' +
+    'External agents are readers — do not POST /api/context while the UI is open, ' +
+    'or the next UI push will overwrite it.',
+  endpoints: [
+    {
+      method: 'GET',
+      path: '/api/help',
+      description: 'This document.',
+    },
+    {
+      method: 'GET',
+      path: '/api/health',
+      description: 'Liveness check.',
+      response: '{ "ok": true, "port": 8787, "updatedAt": "<iso>" }',
+    },
+    {
+      method: 'GET',
+      path: '/api/context',
+      description: 'Raw HelperContext JSON — the main polling endpoint.',
+      response:
+        '{ updatedAt, project: { width, height, fps }, ' +
+        'waypoints: [{ id, x, y, label }] (x/y normalized 0..1), ' +
+        'strokes: [{ id, label, points: [{ x, y, t }] }] (t = seconds since pen-down, the speed profile), ' +
+        'taps: { taps: [seconds...], unit }, ' +
+        'speedCurve: { duration, bezier: [x1, y1, x2, y2] }, ' +
+        'stageBg: { url, updatedAt } | null }',
+    },
+    {
+      method: 'GET',
+      path: '/api/agent-context',
+      description: 'Pre-rendered prompt text: project, waypoints (+px), strokes summary, taps, speed curve.',
+      query: { format: '"json" returns { prompt, context } instead of plain text' },
+    },
+    {
+      method: 'POST',
+      path: '/api/context',
+      description: 'Partial patch: top-level keys are shallow-merged, re-timestamped, persisted.',
+      body: '{ "waypoints": [...], "taps": {...}, ... } — any subset of HelperContext keys',
+      response: 'The merged HelperContext.',
+    },
+    {
+      method: 'POST',
+      path: '/api/stage-bg',
+      description: 'Replace (or with {"image": null}, clear) the waypoint stage background.',
+      body: '{ "image": "data:image/<png|jpeg|webp|gif>;base64,..." } — max ~10MB decoded',
+      response: '{ "url": "/api/stage-bg" | null, "context": <HelperContext> }',
+    },
+    {
+      method: 'GET',
+      path: '/api/stage-bg',
+      description: 'Serve the current stage background image file (404 if none set).',
+    },
+    {
+      method: 'POST',
+      path: '/api/reset',
+      description: 'Restore default context AND delete the stored background image. Use sparingly.',
+    },
+  ],
+};
+
 function sendJson(res, status, obj) {
   const body = JSON.stringify(obj);
   res.writeHead(status, {
@@ -143,6 +208,12 @@ const server = http.createServer((req, res) => {
 
   if (req.method === 'GET' && url.pathname === '/api/health') {
     sendJson(res, 200, { ok: true, port: PORT, updatedAt: context.updatedAt });
+    return;
+  }
+
+  // Self-description for agents that don't know this API yet.
+  if (req.method === 'GET' && (url.pathname === '/api/help' || url.pathname === '/api')) {
+    sendJson(res, 200, apiHelp);
     return;
   }
 
@@ -256,7 +327,7 @@ const server = http.createServer((req, res) => {
 
   sendJson(res, 404, {
     error: 'not found',
-    hint: 'GET /api/context | GET /api/agent-context | POST /api/context | POST /api/stage-bg | GET /api/stage-bg',
+    hint: 'GET /api/help for the full endpoint list',
   });
 });
 
