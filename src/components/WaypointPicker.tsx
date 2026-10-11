@@ -42,7 +42,7 @@ export default function WaypointPicker({ waypoints, setWaypoints, project, bgUrl
   const snippet = waypointsToRemotion(waypoints, project);
 
   return (
-    <div className="grid2">
+    <div className="wp-layout">
       <div>
         <div className="hint">Click the stage to drop a waypoint. Chain order = list order.</div>
         <div
