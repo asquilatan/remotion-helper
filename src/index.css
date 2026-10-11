@@ -18,14 +18,10 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 
 .shell { max-width: 1500px; margin: 0 auto; padding: 20px 24px 60px; }
 .stack { display: flex; flex-direction: column; gap: 14px; }
-.bento { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
-.bento-main { grid-row: 1 / 3; grid-column: 1; }
-.bento-top { grid-column: 2 / 4; }
+.bento { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 14px; align-items: start; }
 .bento-side .grid2 { grid-template-columns: 1fr; }
 @media (max-width: 1100px) {
   .bento { grid-template-columns: 1fr; }
-  .bento-main { grid-row: auto; grid-column: auto; }
-  .bento-top { grid-column: auto; }
 }
 .section-title { margin: 0 0 12px; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
 
