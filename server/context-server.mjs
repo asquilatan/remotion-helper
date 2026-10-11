@@ -13,6 +13,7 @@ const defaultContext = {
   project: { width: 1920, height: 1080, fps: 30 },
   waypoints: [],
   strokes: [],
+  planeMarkers: [],
   taps: { taps: [], unit: 's' },
   speedCurve: { duration: 1.5, bezier: [0.25, 0.1, 0.25, 1.0] },
   stageBg: null,
@@ -84,6 +85,7 @@ const apiHelp = {
         '{ updatedAt, project: { width, height, fps }, ' +
         'waypoints: [{ id, x, y, label }] (x/y normalized 0..1), ' +
         'strokes: [{ id, label, points: [{ x, y, t }] }] (t = seconds since pen-down, the speed profile), ' +
+        'planeMarkers: [{ id, label, x, y }] (normalized 0..1 on the 3D plane), ' +
         'taps: { taps: [seconds...], unit }, ' +
         'speedCurve: { duration, bezier: [x1, y1, x2, y2] }, ' +
         'stageBg: { url, updatedAt } | null }',
@@ -146,6 +148,7 @@ function sendText(res, status, text) {
 function agentView(ctx) {
   const wp = ctx.waypoints ?? [];
   const strokes = ctx.strokes ?? [];
+  const planeMarkers = ctx.planeMarkers ?? [];
   const taps = ctx.taps?.taps ?? [];
   const sc = ctx.speedCurve ?? {};
   const lines = [
@@ -174,6 +177,9 @@ function agentView(ctx) {
           : 'empty';
       return `- [${i}] ${s.label ?? s.id} :: ${pts.length} pts, ${dur.toFixed(2)}s, ${bbox} (full points in /api/context JSON)`;
     }),
+    ``,
+    `## 3d plane markers (${planeMarkers.length}) — normalized 0..1 on the rotatable plane, y-down like 2D`,
+    ...planeMarkers.map((m, i) => `- [${i}] ${m.label ?? m.id} :: x=${m.x.toFixed(4)} y=${m.y.toFixed(4)}`),
     ``,
     `## tap timer (${taps.length} taps) — absolute seconds + deltas`,
     taps.length

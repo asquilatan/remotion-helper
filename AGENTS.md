@@ -12,7 +12,8 @@ builder. React + Vite frontend, zero-dependency Node backend.
 ## Architecture
 
 - `src/App.tsx` — owns all state (project, waypoints, taps, speedCurve), tab layout
-- `src/components/` — one file per tool: `WaypointPicker`, `TapTimer`, `SpeedCurveBuilder`
+- `src/components/` — one file per tool: `WaypointPicker` (+ shared `WaypointStage`),
+  `TapTimer`, `SpeedCurveBuilder`, `MarkerPlane3D` (three.js, local scene state only)
 - `src/types.ts` — `HelperContext` is the shared contract; change it with care
 - `src/lib/remotionExport.ts` — Remotion snippet formatters · `src/lib/contextSync.ts` — backend push
 - `server/context-server.mjs` — plain-Node API, persists to `server/context.json`

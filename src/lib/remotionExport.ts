@@ -1,4 +1,4 @@
-import type { ProjectSettings, SpeedCurveState, Stroke, Waypoint } from '../types';
+import type { PlaneMarker, ProjectSettings, SpeedCurveState, Stroke, Waypoint } from '../types';
 
 /** "click.click.......click" -> [0.000, 0.100, 0.700]-style absolute times. */
 export function tapsToAbsolute(taps: number[]): string {
@@ -43,6 +43,18 @@ export function speedCurveToRemotion(sc: SpeedCurveState): string {
 /** CSS cubic-bezier string for the live preview. */
 export function bezierToCss(b: SpeedCurveState['bezier']): string {
   return `cubic-bezier(${b.join(', ')})`;
+}
+
+/** 3D plane markers -> normalized coords (map x/y onto your plane in Remotion). */
+export function markers3DToRemotion(markers: PlaneMarker[]): string {
+  return (
+    `// ${markers.length} 3D-plane marker(s) — x,y normalized 0..1, y-down like 2D\n` +
+    `export const planeMarkers = ${JSON.stringify(
+      markers.map((m) => ({ x: m.x, y: m.y })),
+      null,
+      2,
+    )};\n`
+  );
 }
 
 /** Freehand strokes -> px path + per-point seconds, replayable at recorded speed. */

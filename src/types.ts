@@ -45,11 +45,20 @@ export interface Stroke {
   points: StrokePoint[];
 }
 
+export interface PlaneMarker {
+  id: string;
+  label: string;
+  /** normalized 0..1 on the 3D plane, y-down like 2D */
+  x: number;
+  y: number;
+}
+
 export interface HelperContext {
   updatedAt: string;
   project: ProjectSettings;
   waypoints: Waypoint[];
   strokes: Stroke[];
+  planeMarkers: PlaneMarker[];
   taps: TapState;
   speedCurve: SpeedCurveState;
   stageBg: StageBg | null;

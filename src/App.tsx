@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import TapTimer from './components/TapTimer';
+import MarkerPlane3D from './components/MarkerPlane3D';
 import WaypointPicker from './components/WaypointPicker';
 import SpeedCurveBuilder from './components/SpeedCurveBuilder';
 import { createContextPusher, fetchContext, uploadStageBg } from './lib/contextSync';
-import type { HelperContext, ProjectSettings, SpeedCurveState, Stroke, TapState, Waypoint } from './types';
+import type { HelperContext, PlaneMarker, ProjectSettings, SpeedCurveState, Stroke, TapState, Waypoint } from './types';
 
 const pusher = createContextPusher(400);
 
@@ -20,6 +21,7 @@ export default function App() {
   const [project, setProject] = useState<ProjectSettings>({ width: 1920, height: 1080, fps: 30 });
   const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
   const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [planeMarkers, setPlaneMarkers] = useState<PlaneMarker[]>([]);
   const [taps, setTaps] = useState<TapState>({ taps: [] });
   const [speedCurve, setSpeedCurve] = useState<SpeedCurveState>({
     duration: 1.5,
@@ -43,8 +45,8 @@ export default function App() {
 
   // Push every change to the backend so GET /api/context stays fresh for your agent.
   const ctxPatch = useMemo(
-    () => ({ project, waypoints, strokes, taps, speedCurve }),
-    [project, waypoints, strokes, taps, speedCurve],
+    () => ({ project, waypoints, strokes, planeMarkers, taps, speedCurve }),
+    [project, waypoints, strokes, planeMarkers, taps, speedCurve],
   );
   useEffect(() => {
     pusher.push(ctxPatch);
@@ -59,6 +61,7 @@ export default function App() {
       setProject(ctx.project);
       setWaypoints(ctx.waypoints ?? []);
       setStrokes(ctx.strokes ?? []);
+      setPlaneMarkers(ctx.planeMarkers ?? []);
       setTaps(ctx.taps ?? { taps: [] });
       setSpeedCurve(ctx.speedCurve);
       setStageBg(null);
@@ -139,6 +142,10 @@ export default function App() {
         <section className="panel bento-side" id="curve">
           <h2 className="section-title">Speed curve</h2>
           <SpeedCurveBuilder curve={speedCurve} setCurve={setSpeedCurve} />
+        </section>
+        <section className="panel bento-wide" id="plane3d">
+          <h2 className="section-title">3D plane{planeMarkers.length ? ` (${planeMarkers.length})` : ''}</h2>
+          <MarkerPlane3D markers={planeMarkers} setMarkers={setPlaneMarkers} />
         </section>
       </main>
 
