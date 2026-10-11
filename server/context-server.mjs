@@ -13,9 +13,9 @@ const defaultContext = {
   project: { width: 1920, height: 1080, fps: 30 },
   waypoints: [],
   strokes: [],
-  planeMarkers: [],
+  markers3d: [],
+  surface: 'plane',
   planeView: { position: [1.1, -1.7, 1.5], target: [0, 0, 0] },
-  shapes: [],
   taps: { taps: [], unit: 's' },
   speedCurve: { duration: 1.5, bezier: [0.25, 0.1, 0.25, 1.0] },
   stageBg: null,
@@ -87,9 +87,9 @@ const apiHelp = {
         '{ updatedAt, project: { width, height, fps }, ' +
         'waypoints: [{ id, x, y, label }] (x/y normalized 0..1), ' +
         'strokes: [{ id, label, points: [{ x, y, t }] }] (t = seconds since pen-down, the speed profile), ' +
-        'planeMarkers: [{ id, label, x, y, z }] (x,y normalized 0..1, z in plane units), ' +
         'planeView: { position: [x,y,z], target: [x,y,z] } (world-space camera angle), ' +
-        'shapes: [{ id, label, kind, position, rotation (radians), scale }] (3D preset objects), ' +
+        'markers3d: [{ id, label, position: [x,y,z], normal: [x,y,z] }], ' +
+        'surface: "plane"|"sphere"|"cube"|"cylinder"|"torus"|"cone", ' +
         'taps: { taps: [seconds...], unit }, ' +
         'speedCurve: { duration, bezier: [x1, y1, x2, y2] }, ' +
         'stageBg: { url, updatedAt } | null }',
@@ -152,9 +152,9 @@ function sendText(res, status, text) {
 function agentView(ctx) {
   const wp = ctx.waypoints ?? [];
   const strokes = ctx.strokes ?? [];
-  const planeMarkers = ctx.planeMarkers ?? [];
+  const markers3d = ctx.markers3d ?? [];
   const pv = ctx.planeView ?? {};
-  const shapes = ctx.shapes ?? [];
+  const surface = ctx.surface ?? 'plane';
   const taps = ctx.taps?.taps ?? [];
   const sc = ctx.speedCurve ?? {};
   const lines = [
@@ -184,16 +184,13 @@ function agentView(ctx) {
       return `- [${i}] ${s.label ?? s.id} :: ${pts.length} pts, ${dur.toFixed(2)}s, ${bbox} (full points in /api/context JSON)`;
     }),
     ``,
-    `## 3d plane markers (${planeMarkers.length}) — x,y normalized 0..1 (y-down), z in plane units`,
+    `## 3d markers (${markers3d.length}) on '${surface}' — world-space position + normal`,
     Array.isArray(pv.position)
       ? `- camera: pos(${pv.position.join(', ')}) tgt(${Array.isArray(pv.target) ? pv.target.join(', ') : '?'})`
       : `- camera: ?`,
-    ...planeMarkers.map((m, i) => `- [${i}] ${m.label ?? m.id} :: x=${m.x.toFixed(4)} y=${m.y.toFixed(4)} z=${(m.z ?? 0).toFixed(4)}`),
-    ``,
-    `## 3d shapes (${shapes.length}) — kind + transform (position world units, rotation radians, scale)`,
-    ...shapes.map((s, i) => {
+    ...markers3d.map((m, i) => {
       const fmt = (v) => (Array.isArray(v) ? v.map((n) => (+n).toFixed(3)).join(', ') : '?');
-      return `- [${i}] ${s.label ?? s.id} (${s.kind ?? '?'}) :: pos(${fmt(s.position)}) rot(${fmt(s.rotation)}) scale(${fmt(s.scale)})`;
+      return `- [${i}] ${m.label ?? m.id} :: pos(${fmt(m.position)}) normal(${fmt(m.normal)})`;
     }),
     ``,
     ``,

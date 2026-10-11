@@ -45,29 +45,17 @@ export interface Stroke {
   points: StrokePoint[];
 }
 
-export interface PlaneMarker {
-  id: string;
-  label: string;
-  /** normalized 0..1 on the 3D plane, y-down like 2D */
-  x: number;
-  y: number;
-  /** plane units off the surface (0 = on the plane) */
-  z: number;
-}
-
 export type Vec3 = [number, number, number];
 
-export type ShapeKind = 'cube' | 'sphere' | 'pyramid' | 'cylinder' | 'torus';
+export type SurfaceKind = 'plane' | 'sphere' | 'cube' | 'cylinder' | 'torus' | 'cone';
 
-export interface Shape3D {
+export interface Marker3D {
   id: string;
   label: string;
-  kind: ShapeKind;
-  /** world position */
+  /** world-space point on the surface */
   position: Vec3;
-  /** radians */
-  rotation: Vec3;
-  scale: Vec3;
+  /** surface normal there (for orienting things in Remotion) */
+  normal: Vec3;
 }
 
 export interface PlaneView {
@@ -82,9 +70,9 @@ export interface HelperContext {
   project: ProjectSettings;
   waypoints: Waypoint[];
   strokes: Stroke[];
-  planeMarkers: PlaneMarker[];
+  markers3d: Marker3D[];
+  surface: SurfaceKind;
   planeView: PlaneView;
-  shapes: Shape3D[];
   taps: TapState;
   speedCurve: SpeedCurveState;
   stageBg: StageBg | null;

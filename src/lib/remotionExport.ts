@@ -1,4 +1,4 @@
-import type { PlaneMarker, PlaneView, ProjectSettings, Shape3D, SpeedCurveState, Stroke, Waypoint } from '../types';
+import type { Marker3D, PlaneView, ProjectSettings, SpeedCurveState, Stroke, SurfaceKind, Waypoint } from '../types';
 
 /** "click.click.......click" -> [0.000, 0.100, 0.700]-style absolute times. */
 export function tapsToAbsolute(taps: number[]): string {
@@ -45,21 +45,17 @@ export function bezierToCss(b: SpeedCurveState['bezier']): string {
   return `cubic-bezier(${b.join(', ')})`;
 }
 
-/** 3D plane markers + camera + shapes — reproduce the exact 3D setup in Remotion. */
-export function markers3DToRemotion(markers: PlaneMarker[], view: PlaneView, shapes: Shape3D[]): string {
+/** 3D surface markers + camera — reproduce the exact 3D setup in Remotion. */
+export function markers3DToRemotion(markers: Marker3D[], view: PlaneView, surface: SurfaceKind): string {
   return (
-    `// ${markers.length} marker(s), ${shapes.length} shape(s) — positions in plane/world units, rotation in radians\n` +
-    `export const planeMarkers = ${JSON.stringify(
-      markers.map((m) => ({ x: m.x, y: m.y, z: m.z })),
+    `// ${markers.length} marker(s) on '${surface}' — world-space position + normal\n` +
+    `export const surface: '${surface}' = '${surface}';\n` +
+    `export const markers3d = ${JSON.stringify(
+      markers.map((m) => ({ position: m.position, normal: m.normal })),
       null,
       2,
     )};\n` +
-    `export const planeCamera = ${JSON.stringify(view, null, 2)};\n` +
-    `export const planeShapes = ${JSON.stringify(
-      shapes.map((s) => ({ kind: s.kind, position: s.position, rotation: s.rotation, scale: s.scale })),
-      null,
-      2,
-    )};\n`
+    `export const planeCamera = ${JSON.stringify(view, null, 2)};\n`
   );
 }
 
