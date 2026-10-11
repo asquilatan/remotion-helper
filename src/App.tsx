@@ -2,10 +2,19 @@ import { useEffect, useMemo, useState } from 'react';
 import TapTimer from './components/TapTimer';
 import WaypointPicker from './components/WaypointPicker';
 import SpeedCurveBuilder from './components/SpeedCurveBuilder';
-import { createContextPusher } from './lib/contextSync';
+import { createContextPusher, fetchContext, uploadStageBg } from './lib/contextSync';
 import type { ProjectSettings, SpeedCurveState, TapState, ToolTab, Waypoint } from './types';
 
 const pusher = createContextPusher(400);
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = () => reject(new Error('could not read file'));
+    r.readAsDataURL(file);
+  });
+}
 
 export default function App() {
   const [tab, setTab] = useState<ToolTab>('waypoints');
@@ -16,9 +25,20 @@ export default function App() {
     duration: 1.5,
     bezier: [0.25, 0.1, 0.25, 1],
   });
+  const [stageBg, setStageBg] = useState<string | null>(null);
   const [sync, setSync] = useState<'syncing' | 'saved' | 'error'>('saved');
 
   useEffect(() => pusher.onStatus(setSync), []);
+
+  // Pick up server-side state (stage bg) on load. UI state stays authoritative
+  // for waypoints/taps/curve — the backend never overwrites those on boot.
+  useEffect(() => {
+    fetchContext()
+      .then((ctx) => {
+        if (ctx.stageBg?.url) setStageBg(`${ctx.stageBg.url}?v=${Date.now()}`);
+      })
+      .catch(() => setSync('error'));
+  }, []);
 
   // Push every change to the backend so GET /api/context stays fresh for your agent.
   const ctxPatch = useMemo(
@@ -96,7 +116,17 @@ export default function App() {
 
         <main className="panel">
           {tab === 'waypoints' && (
-            <WaypointPicker waypoints={waypoints} setWaypoints={setWaypoints} project={project} />
+            <WaypointPicker
+              waypoints={waypoints}
+              setWaypoints={setWaypoints}
+              project={project}
+              bgUrl={stageBg}
+              onBgFile={async (file) => {
+                const dataUrl = await fileToDataUrl(file);
+                setStageBg(await uploadStageBg(dataUrl));
+              }}
+              onClearBg={async () => setStageBg(await uploadStageBg(null))}
+            />
           )}
           {tab === 'timer' && <TapTimer taps={taps} setTaps={setTaps} fps={project.fps} />}
           {tab === 'curve' && <SpeedCurveBuilder curve={speedCurve} setCurve={setSpeedCurve} />}

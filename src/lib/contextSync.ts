@@ -17,6 +17,18 @@ export function pushContext(patch: Partial<HelperContext>): Promise<HelperContex
   return req('/api/context', { method: 'POST', body: JSON.stringify(patch) });
 }
 
+/** Upload (or clear, with null) the waypoint stage background. Returns fresh url or null. */
+export async function uploadStageBg(dataUrl: string | null): Promise<string | null> {
+  const res = await fetch('/api/stage-bg', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: dataUrl }),
+  });
+  if (!res.ok) throw new Error(`POST /api/stage-bg -> ${res.status}`);
+  const { url } = await res.json();
+  return url ? `${url}?v=${Date.now()}` : null;
+}
+
 /** Debounced push helper — returns a function you call with the latest patch. */
 export function createContextPusher(delayMs = 400) {
   let t: ReturnType<typeof setTimeout> | undefined;

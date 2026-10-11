@@ -22,6 +22,8 @@ builder. React + Vite frontend, zero-dependency Node backend.
 - `GET :8787/api/context` — raw `HelperContext` JSON
 - `GET :8787/api/agent-context` — prompt-ready text (`?format=json` for text + raw)
 - `POST /api/context` — partial patch, merged + timestamped
+- `POST /api/stage-bg` — `{ "image": "data:image/<png|jpeg|webp|gif>;base64,..." }` replaces the
+  waypoint stage background (or `{ "image": null }` to clear); file served at `GET /api/stage-bg`
 - `POST /api/reset` — restore defaults (use sparingly)
 
 ## Frontend → backend sync

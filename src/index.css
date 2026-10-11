@@ -71,6 +71,8 @@ h3 { margin: 14px 0 8px; font-size: 14px; text-transform: uppercase; letter-spac
     linear-gradient(90deg, #ffffff10 1px, transparent 1px);
   background-size: 10% 10%; }
 .stage-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--dim); font-size: 13px; }
+.stage-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; }
+.danger-text { color: var(--danger); margin-top: 8px; }
 .wp { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
   background: var(--accent); display: grid; place-items: center; font-size: 12px; font-weight: 700;
   border: 2px solid #fff3; z-index: 2; }

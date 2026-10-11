@@ -25,12 +25,18 @@ export interface SpeedCurveState {
   bezier: [number, number, number, number];
 }
 
+export interface StageBg {
+  url: string;
+  updatedAt: string;
+}
+
 export interface HelperContext {
   updatedAt: string;
   project: ProjectSettings;
   waypoints: Waypoint[];
   taps: TapState;
   speedCurve: SpeedCurveState;
+  stageBg: StageBg | null;
 }
 
 export type ToolTab = 'waypoints' | 'timer' | 'curve';

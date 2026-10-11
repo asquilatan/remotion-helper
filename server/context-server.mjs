@@ -14,7 +14,30 @@ const defaultContext = {
   waypoints: [],
   taps: { taps: [], unit: 's' },
   speedCurve: { duration: 1.5, bezier: [0.25, 0.1, 0.25, 1.0] },
+  stageBg: null,
 };
+
+const BG_MIME_TO_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' };
+const BG_MIME_TO_CTYPE = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
+
+function bgFile() {
+  try {
+    const hit = fs.readdirSync(__dirname).find((f) => f.startsWith('stage-bg.'));
+    return hit ? path.join(__dirname, hit) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearBgFiles(except = null) {
+  try {
+    for (const f of fs.readdirSync(__dirname)) {
+      if (f.startsWith('stage-bg.') && f !== except) fs.unlinkSync(path.join(__dirname, f));
+    }
+  } catch {
+    /* ignore */
+  }
+}
 
 function load() {
   try {
@@ -63,6 +86,9 @@ function agentView(ctx) {
     `project: ${ctx.project?.width}x${ctx.project?.height} @ ${ctx.project?.fps}fps`,
     ``,
     `## waypoints (${wp.length}) — x,y normalized 0..1, px for project size`,
+    ctx.stageBg
+      ? `- stage bg: ${ctx.stageBg.url} (updated ${ctx.stageBg.updatedAt})`
+      : `- stage bg: none`,
     ...wp.map((w, i) => {
       const px = Math.round(w.x * (ctx.project?.width ?? 1920));
       const py = Math.round(w.y * (ctx.project?.height ?? 1080));
@@ -146,9 +172,75 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Replace (or clear, with { "image": null }) the waypoint stage background.
+  // Body: { "image": "data:image/png;base64,...." } — png/jpeg/webp/gif, ~10MB max.
+  if (req.method === 'POST' && url.pathname === '/api/stage-bg') {
+    let raw = '';
+    req.on('data', (c) => {
+      raw += c;
+      if (raw.length > 15_000_000) req.destroy();
+    });
+    req.on('end', () => {
+      try {
+        const { image } = raw ? JSON.parse(raw) : {};
+        if (image === null || image === undefined || image === '') {
+          clearBgFiles();
+          context = save({ ...context, stageBg: null });
+          sendJson(res, 200, { url: null, context });
+          return;
+        }
+        const m = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(image);
+        if (!m) {
+          sendJson(res, 400, { error: 'expected { "image": "data:image/<png|jpeg|webp|gif>;base64,..." } or { "image": null }' });
+          return;
+        }
+        const ext = BG_MIME_TO_EXT[m[1]];
+        const buf = Buffer.from(m[2], 'base64');
+        if (!buf.length || buf.length > 10_000_000) {
+          sendJson(res, 400, { error: 'image empty or over 10MB' });
+          return;
+        }
+        const name = `stage-bg.${ext}`;
+        fs.writeFileSync(path.join(__dirname, name), buf);
+        clearBgFiles(name);
+        context = save({
+          ...context,
+          stageBg: { url: '/api/stage-bg', updatedAt: new Date().toISOString() },
+        });
+        sendJson(res, 200, { url: context.stageBg.url, context });
+      } catch {
+        sendJson(res, 400, { error: 'invalid JSON body' });
+      }
+    });
+    return;
+  }
+
+  // Serve the current stage background (with ?v= cache-buster from the UI).
+  if (req.method === 'GET' && url.pathname === '/api/stage-bg') {
+    const file = bgFile();
+    if (!file) {
+      sendJson(res, 404, { error: 'no stage background set — POST /api/stage-bg first' });
+      return;
+    }
+    const ext = path.extname(file).slice(1);
+    try {
+      const buf = fs.readFileSync(file);
+      res.writeHead(200, {
+        'Content-Type': BG_MIME_TO_CTYPE[ext] ?? 'application/octet-stream',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-cache',
+        'Content-Length': buf.length,
+      });
+      res.end(buf);
+    } catch {
+      sendJson(res, 500, { error: 'could not read stage background' });
+    }
+    return;
+  }
+
   sendJson(res, 404, {
     error: 'not found',
-    hint: 'GET /api/context | GET /api/agent-context | POST /api/context',
+    hint: 'GET /api/context | GET /api/agent-context | POST /api/context | POST /api/stage-bg | GET /api/stage-bg',
   });
 });
 

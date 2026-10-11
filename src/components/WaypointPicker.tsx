@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import type { ProjectSettings, Waypoint } from '../types';
 import { waypointsToRemotion } from '../lib/remotionExport';
 
@@ -6,13 +6,19 @@ interface Props {
   waypoints: Waypoint[];
   setWaypoints: (w: Waypoint[]) => void;
   project: ProjectSettings;
+  bgUrl: string | null;
+  onBgFile: (f: File) => Promise<void>;
+  onClearBg: () => Promise<void>;
 }
 
 let n = 0;
 const nid = () => `wp${Date.now().toString(36)}${(n++).toString(36)}`;
 
-export default function WaypointPicker({ waypoints, setWaypoints, project }: Props) {
+export default function WaypointPicker({ waypoints, setWaypoints, project, bgUrl, onBgFile, onClearBg }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [bgBusy, setBgBusy] = useState(false);
+  const [bgError, setBgError] = useState<string | null>(null);
 
   const addFromClick = (e: React.MouseEvent) => {
     const el = stageRef.current?.getBoundingClientRect();
@@ -45,6 +51,7 @@ export default function WaypointPicker({ waypoints, setWaypoints, project }: Pro
           style={{ aspectRatio: `${project.width} / ${project.height}` }}
           onClick={addFromClick}
         >
+          {bgUrl && <img src={bgUrl} className="stage-bg" alt="" draggable={false} />}
           <div className="stage-grid" />
           {waypoints.map((w, i) => (
             <div
@@ -80,7 +87,47 @@ export default function WaypointPicker({ waypoints, setWaypoints, project }: Pro
           >
             Undo last
           </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            hidden
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (!f) return;
+              setBgBusy(true);
+              setBgError(null);
+              try {
+                await onBgFile(f);
+              } catch {
+                setBgError('upload failed (png/jpg/webp/gif, ≤10MB)');
+              } finally {
+                setBgBusy(false);
+              }
+            }}
+          />
+          <button className="btn ghost" disabled={bgBusy} onClick={() => fileRef.current?.click()}>
+            {bgBusy ? 'Uploading…' : bgUrl ? 'Replace bg' : 'Set bg image'}
+          </button>
+          {bgUrl && (
+            <button
+              className="btn ghost"
+              disabled={bgBusy}
+              onClick={async () => {
+                setBgBusy(true);
+                try {
+                  await onClearBg();
+                } finally {
+                  setBgBusy(false);
+                }
+              }}
+            >
+              Remove bg
+            </button>
+          )}
         </div>
+        {bgError && <div className="hint danger-text">{bgError}</div>}
       </div>
       <div>
         <h3>Chain ({waypoints.length})</h3>
