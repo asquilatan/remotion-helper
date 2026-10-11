@@ -245,7 +245,7 @@ export default function WaypointPicker({
         </div>
         {bgError && <div className="hint danger-text">{bgError}</div>}
       </div>
-      <div>
+      <div className="wp-side">
         <h3>Chain ({waypoints.length})</h3>
         <ol className="chain">
           {waypoints.map((w, i) => (
