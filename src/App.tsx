@@ -139,7 +139,7 @@ export default function App() {
             onClearBg={async () => setStageBg(await uploadStageBg(null))}
           />
         </section>
-        <section className="panel bento-side" id="timer">
+        <section className="panel bento-top" id="timer">
           <h2 className="section-title">Tap timer{taps.taps.length ? ` (${taps.taps.length})` : ''}</h2>
           <TapTimer taps={taps} setTaps={setTaps} fps={project.fps} />
         </section>
@@ -147,7 +147,7 @@ export default function App() {
           <h2 className="section-title">Speed curve</h2>
           <SpeedCurveBuilder curve={speedCurve} setCurve={setSpeedCurve} />
         </section>
-        <section className="panel bento-wide" id="plane3d">
+        <section className="panel bento-side" id="plane3d">
           <h2 className="section-title">3D{markers3d.length ? ` (${markers3d.length})` : ''}</h2>
           <MarkerPlane3D markers={markers3d} setMarkers={setMarkers3d} view={planeView} setView={setPlaneView} surface={surface} setSurface={setSurface} />
         </section>
