@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ProjectSettings, Stroke, StrokePoint, Waypoint } from '../types';
 import { strokesToRemotion, waypointsToRemotion } from '../lib/remotionExport';
+import WaypointStage, { type StagePoint } from './WaypointStage';
 
 interface Props {
   waypoints: Waypoint[];
@@ -30,7 +31,7 @@ export default function WaypointPicker({
   onClearBg,
 }: Props) {
   const [mode, setMode] = useState<'click' | 'draw'>('click');
-  const stageRef = useRef<HTMLDivElement>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [bgBusy, setBgBusy] = useState(false);
   const [bgError, setBgError] = useState<string | null>(null);
@@ -77,52 +78,52 @@ export default function WaypointPicker({
     return () => cancelAnimationFrame(raf);
   }, [playingId, strokes]);
 
-  const toNorm = (clientX: number, clientY: number) => {
-    const el = stageRef.current?.getBoundingClientRect();
-    if (!el) return null;
-    return {
-      x: Math.min(1, Math.max(0, (clientX - el.left) / el.width)),
-      y: Math.min(1, Math.max(0, (clientY - el.top) / el.height)),
+  // Precision modal: Esc to close, lock page scroll while open.
+  useEffect(() => {
+    if (!modalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setModalOpen(false);
     };
-  };
+    window.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [modalOpen]);
 
-  const addFromClick = (e: React.MouseEvent) => {
-    if (mode !== 'click') return;
-    const p = toNorm(e.clientX, e.clientY);
-    if (!p) return;
+  const onPick = (p: StagePoint) => {
     setWaypoints([
       ...waypoints,
       { id: nid('wp'), x: +p.x.toFixed(4), y: +p.y.toFixed(4), label: `P${waypoints.length + 1}` },
     ]);
   };
 
-  const beginStroke = (e: React.PointerEvent) => {
-    if (mode !== 'draw') return;
-    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-    const p = toNorm(e.clientX, e.clientY);
-    if (!p) return;
+  const onStrokeStart = (p: StagePoint) => {
     drawStart.current = performance.now();
     setDraft([{ ...p, t: 0 }]);
   };
 
-  const extendStroke = (e: React.PointerEvent) => {
-    if (mode !== 'draw' || !draft) return;
-    const p = toNorm(e.clientX, e.clientY);
-    if (!p) return;
-    const last = draft[draft.length - 1];
-    const dx = p.x - last.x;
-    const dy = p.y - last.y;
-    if (dx * dx + dy * dy < EPS * EPS) return;
-    const t = (performance.now() - drawStart.current) / 1000;
-    setDraft([...draft, { x: p.x, y: p.y, t: +t.toFixed(3) }]);
+  const onStrokePoint = (p: StagePoint) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const last = prev[prev.length - 1];
+      const dx = p.x - last.x;
+      const dy = p.y - last.y;
+      if (dx * dx + dy * dy < EPS * EPS) return prev;
+      const t = (performance.now() - drawStart.current) / 1000;
+      return [...prev, { x: p.x, y: p.y, t: +t.toFixed(3) }];
+    });
   };
 
-  const endStroke = () => {
-    if (mode !== 'draw' || !draft) return;
-    const pts = draft;
-    setDraft(null);
-    if (!pts.length) return;
-    setStrokes([...strokes, { id: nid('st'), label: `S${strokes.length + 1}`, points: pts }]);
+  const onStrokeEnd = () => {
+    setDraft((prev) => {
+      if (prev && prev.length) {
+        setStrokes([...strokes, { id: nid('st'), label: `S${strokes.length + 1}`, points: prev }]);
+      }
+      return null;
+    });
   };
 
   const move = (i: number, dir: -1 | 1) => {
@@ -140,6 +141,22 @@ export default function WaypointPicker({
 
   const snippet = waypointsToRemotion(waypoints, project);
   const strokeSnippet = strokesToRemotion(strokes, project, project.fps);
+  const emptyHint = mode === 'click' ? 'click anywhere to add P1' : 'press and drag to draw S1';
+
+  const stageProps = {
+    waypoints,
+    strokes,
+    draft,
+    playPos,
+    project,
+    bgUrl,
+    mode,
+    emptyHint,
+    onPick,
+    onStrokeStart,
+    onStrokePoint,
+    onStrokeEnd,
+  };
 
   return (
     <div className="wp-layout">
@@ -151,76 +168,27 @@ export default function WaypointPicker({
           <button className={mode === 'draw' ? 'btn' : 'btn ghost'} onClick={() => setMode('draw')}>
             Draw path
           </button>
+          <button className="btn ghost" style={{ marginLeft: 'auto' }} onClick={() => setModalOpen(true)}>
+            ⛶ Precise
+          </button>
         </div>
         <div className="hint">
           {mode === 'click'
             ? 'Click the stage to drop a waypoint. Chain order = list order.'
             : 'Press and drag on the stage to draw — your mouse speed is recorded with the path.'}
         </div>
-        <div
-          ref={stageRef}
-          className="stage"
-          style={{ aspectRatio: `${project.width} / ${project.height}` }}
-          onClick={addFromClick}
-          onPointerDown={beginStroke}
-          onPointerMove={extendStroke}
-          onPointerUp={endStroke}
-          onPointerCancel={endStroke}
-        >
-          {bgUrl && <img src={bgUrl} className="stage-bg" alt="" draggable={false} />}
-          <div className="stage-grid" />
-          {waypoints.map((w, i) => (
-            <div
-              key={w.id}
-              className="wp"
-              style={{ left: `${w.x * 100}%`, top: `${w.y * 100}%` }}
-              title={`${w.label} (${w.x}, ${w.y})`}
-            >
-              {i + 1}
+        <WaypointStage {...stageProps} />
+        {modalOpen && (
+          <div className="modal-backdrop" onClick={() => setModalOpen(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-bar">
+                <span className="dim">Waypoint stage — big surface for precise placement (Esc to close)</span>
+                <button className="btn ghost" onClick={() => setModalOpen(false)}>Close ✕</button>
+              </div>
+              <WaypointStage {...stageProps} />
             </div>
-          ))}
-          {waypoints.length > 1 && (
-            <svg className="wp-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <polyline
-                points={waypoints.map((w) => `${w.x * 100},${w.y * 100}`).join(' ')}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={0.6}
-                vectorEffect="non-scaling-stroke"
-              />
-            </svg>
-          )}
-          {(strokes.length > 0 || (draft && draft.length > 1)) && (
-            <svg className="stroke-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-              {strokes.map((s) => (
-                <polyline
-                  key={s.id}
-                  points={s.points.map((p) => `${p.x * 100},${p.y * 100}`).join(' ')}
-                  fill="none"
-                  className="stroke-line"
-                />
-              ))}
-              {draft && draft.length > 1 && (
-                <polyline
-                  points={draft.map((p) => `${p.x * 100},${p.y * 100}`).join(' ')}
-                  fill="none"
-                  className="stroke-line draft"
-                />
-              )}
-            </svg>
-          )}
-          {playPos && (
-            <div
-              className="play-dot"
-              style={{ left: `${playPos.x * 100}%`, top: `${playPos.y * 100}%` }}
-            />
-          )}
-          {waypoints.length === 0 && strokes.length === 0 && !draft && (
-            <div className="stage-empty">
-              {mode === 'click' ? 'click anywhere to add P1' : 'press and drag to draw S1'}
-            </div>
-          )}
-        </div>
+          </div>
+        )}
         <div className="row">
           <button className="btn ghost" onClick={() => setWaypoints([])} disabled={!waypoints.length}>
             Clear points
